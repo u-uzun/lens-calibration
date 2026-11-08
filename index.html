@@ -1,0 +1,1948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Line-Based Lens Calibration</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#eef0f2;--surface:#fff;--surface-2:#f6f7f9;--fg:#141a20;--muted:#5a6570;
+  --line:#d6dbe0;--accent:#0d6ca8;--mark:#e2650c;--ok:#1d7a4c;--warn:#9a6207;--bad:#b3261e;
+  --font-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0e1317;--surface:#171e25;--surface-2:#1e262e;--fg:#e3e9ee;--muted:#93a0ab;
+  --line:#2b353e;--accent:#4ea8e0;--mark:#ff8a3d;--ok:#4cc38a;--warn:#e0b252;--bad:#ef6b63;color-scheme:dark}
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:15px;line-height:1.5}
+.wrap{max-width:1560px;margin:0 auto;padding:20px 18px 60px}
+header.top{display:flex;flex-direction:column;gap:5px;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:16px}
+h1{font-size:24px;font-weight:700;letter-spacing:-.015em;margin:0}
+.sub{color:var(--muted);font-size:13.5px;max-width:84ch;margin:0}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;align-items:start}
+@media (max-width:1080px){.grid{grid-template-columns:minmax(0,1fr)}}
+.leftcol{display:flex;flex-direction:column;gap:14px;min-width:0}
+.belowrow{display:flex;flex-direction:column;gap:14px;min-width:0}
+.bar .sep{width:1px;align-self:stretch;background:var(--line);margin:0 3px}
+#b-fit{font-size:14px;font-weight:700;padding:10px 20px;letter-spacing:.02em}
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:4px;overflow:hidden;min-width:0;position:relative}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.bar .sp{flex:1 1 auto}
+.holder{position:relative;background:#0a0d10;line-height:0;transform-origin:0 0;will-change:transform}
+.zbadge{position:absolute;right:8px;bottom:8px;z-index:5;display:flex;gap:6px;align-items:center;background:rgba(10,13,16,.82);border:1px solid var(--line);border-radius:4px;padding:3px 6px;font:600 11px/1 ui-monospace,Menlo,Consolas,monospace;color:#cfd8e0;pointer-events:none}
+.zbadge button{pointer-events:auto;font:600 11px/1 inherit;padding:3px 6px;cursor:pointer;background:#1b2229;color:#cfd8e0;border:1px solid var(--line);border-radius:3px}
+.holder.panning canvas{cursor:grabbing}
+.holder canvas{display:block;width:100%;height:auto}
+#ov{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
+.sliders{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:10px;border-top:1px solid var(--line);background:var(--surface-2)}
+@media (max-width:780px){.sliders{grid-template-columns:1fr}}
+.sl{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sl .lbl{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.sl .lbl b{font-family:var(--font-mono);font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--fg);font-variant-numeric:tabular-nums}
+.sl input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+.sl .marks{display:flex;gap:5px;flex-wrap:wrap}
+.sl .marks button{padding:2px 7px;font-size:10.5px}
+.foot{display:flex;flex-wrap:wrap;gap:13px;padding:7px 10px;border-top:1px solid var(--line);font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+.panel{display:flex;flex-direction:column;gap:11px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.card h2{font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0;display:flex;gap:7px}
+.card h2 .n{font-family:var(--font-mono);color:var(--accent)}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.hint b{color:var(--fg);font-weight:600}
+button{font:inherit;font-size:12.5px;font-weight:500;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);border-radius:3px;padding:6px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button[disabled]{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.btnrow{display:flex;flex-wrap:wrap;gap:6px}
+label.check{display:flex;gap:7px;align-items:flex-start;font-size:12.5px;cursor:pointer}
+label.check input{margin:3px 0 0}
+ul.lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+ul.lines li{display:flex;flex-direction:column;align-items:stretch;gap:5px;font-family:var(--font-mono);font-size:11px;background:var(--surface-2);border:1px solid var(--line);border-radius:3px;padding:6px 7px}
+.lrow{display:flex;align-items:center;gap:7px;min-width:0}
+.role{display:inline-flex;border:1px solid var(--line);border-radius:3px;overflow:hidden;flex:0 0 auto}
+.role .seg{border:0;border-radius:0;padding:3px 9px;font-size:10.5px;background:transparent;color:var(--muted);font-family:var(--font-ui)}
+.role .seg:hover{color:var(--fg)}
+.role .seg.act{background:var(--accent);color:#fff;font-weight:600}
+.role .seg.act.hd{background:var(--warn);color:#1a1205}
+.stale{font-family:var(--font-ui);font-size:12px;font-weight:600;color:#fff;background:var(--bad);padding:6px 9px;border-radius:3px;margin:0}
+ul.lines li.hold{border-style:dashed;opacity:.85}
+ul.lines li .sw{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
+ul.lines li .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ul.lines li .rr{font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+ul.lines li button{padding:0 5px;font-size:10px}
+.empty{font-size:12.5px;color:var(--muted);font-style:italic;margin:0}
+dl.res{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-family:var(--font-mono);font-size:12px;margin:0}
+dl.res dt{color:var(--muted)}
+dl.res dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.covbox{font-family:var(--font-ui);font-size:12.5px;border:2px solid var(--warn);border-radius:4px;
+  padding:9px 10px;background:var(--surface-2);margin:8px 0 0}
+.covbox h4{margin:0 0 4px;font-size:13px;color:var(--warn)}
+.covbox p{margin:6px 0 0;line-height:1.45}
+.covbox .why{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin:7px 0 0;
+  padding-top:6px;border-top:1px solid var(--line)}
+.bands{display:flex;gap:3px;margin:8px 0 3px}
+.bands span{flex:1;height:18px;border-radius:2px;border:1px solid var(--line);background:var(--surface);
+  font-family:var(--font-mono);font-size:9px;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.bands span.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.bandlbl{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);display:flex;justify-content:space-between}
+.verdict{font-size:12.5px;border-left:3px solid var(--line);padding:7px 9px;background:var(--surface-2);border-radius:0 3px 3px 0}
+.verdict.good{border-left-color:var(--ok)}
+.verdict.warn{border-left-color:var(--warn)}
+.verdict.bad{border-left-color:var(--bad)}
+#prof{width:100%;max-width:480px;height:auto;display:block;border:1px solid var(--line);border-radius:3px;background:var(--surface-2)}
+textarea{width:100%;font-family:var(--font-mono);font-size:10.5px;line-height:1.45;background:var(--surface-2);color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:7px;resize:vertical;min-height:100px}
+.toast{font-size:11.5px;color:var(--ok);min-height:15px}
+.statline{font-family:var(--font-mono);font-size:11.5px;padding:5px 8px;border-radius:3px;
+  background:var(--surface-2);border:1px solid var(--line)}
+.statline.none{border-color:var(--warn);color:var(--warn)}
+.statline.ok{border-color:var(--ok);color:var(--ok)}
+.rec{font-family:var(--font-mono);font-size:10.5px;color:var(--ok);white-space:nowrap;align-self:center}
+.rec[hidden]{display:none}
+#b-manual{border:2px solid #c62828;font-weight:700;color:#c62828}
+#b-manual:hover{background:#c62828;color:#fff}
+#b-load{background:#f2c230;color:#1a1205;border-color:#c99f12;font-weight:600}
+#b-load:hover{background:#ffd34d;color:#1a1205}
+#b-sample{background:var(--surface-2);color:var(--fg)}
+#b-fin{background:#bde9c4;color:#10301a;border-color:#8ccfa0;font-weight:600}
+#b-fin:hover{background:#cff2d5;color:#10301a}
+#b-undo{background:#f6cfdd;color:#3a0f20;border-color:#dfa6bd;font-weight:600}
+#b-undo:hover{background:#fbdfe9;color:#3a0f20}
+/* header.top'un flex-direction:column kurali daha ozgul oldugu icin
+   bu kurali da element+sinif duzeyinde yaziyoruz, yoksa buton alta duser. */
+header.topbtn{display:flex;flex-direction:row;align-items:flex-start;
+  justify-content:space-between;gap:18px;flex-wrap:wrap}
+header.topbtn > div{min-width:0;flex:1 1 420px}
+header.topbtn #b-sample{flex:0 0 auto;margin-top:2px}
+.gnote{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.mono-out{font-family:var(--font-mono);font-size:10.5px;line-height:1.6;color:var(--muted)}
+.k2box{margin:6px 0 2px;padding:9px 10px;border:1px solid var(--accent);border-left-width:3px;
+  border-radius:4px;background:rgba(13,108,168,.07);font-size:12px;line-height:1.55;color:var(--fg)}
+.k2box b{color:var(--fg)}
+.k2box button{margin-top:8px;font:600 12px/1 inherit;padding:6px 11px;cursor:pointer;
+  background:var(--accent);color:#fff;border:none;border-radius:4px}
+#uncout{white-space:pre;overflow-x:auto;font-size:10px;margin-top:6px}
+.mono-out b{color:var(--fg)}
+.manrow{display:flex;align-items:center;gap:6px;font-size:12.5px}
+.manrow input{width:86px;font-family:var(--font-mono);font-size:12px;padding:4px 6px;background:var(--surface-2);color:var(--fg);border:1px solid var(--line);border-radius:3px}
+ul.lines li .rr.hi{color:var(--warn);font-weight:600}
+ul.lines li{cursor:default;transition:border-color .12s,background .12s}
+ul.lines li.hl{border-color:var(--accent);background:rgba(13,108,168,.10)}
+ul.lines li .idx{font-family:var(--font-mono);font-size:11px;font-weight:700;color:#fff;
+  background:var(--muted);border-radius:3px;padding:1px 5px;flex:0 0 auto}
+.manual-wrap{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);
+  display:flex;align-items:flex-start;justify-content:center;padding:28px 18px;overflow:auto}
+.manual-wrap[hidden]{display:none}
+.manual{background:var(--surface);border:1px solid var(--line);border-radius:6px;
+  max-width:860px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.manual-head{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:13px 20px;background:var(--surface);border-bottom:1px solid var(--line);
+  border-radius:6px 6px 0 0}
+.manual-head h2{margin:0;font-size:15px;font-weight:700;letter-spacing:.02em;color:var(--fg);
+  text-transform:none}
+.manual-body{padding:4px 20px 26px;font-size:13.5px;line-height:1.62;color:var(--fg)}
+.manual-body h3{font-size:14px;font-weight:700;margin:24px 0 7px;padding-top:14px;
+  border-top:1px solid var(--line);color:var(--fg)}
+.manual-body h3:first-child{border-top:0;padding-top:4px;margin-top:8px}
+.manual-body h4{font-size:12.8px;font-weight:700;margin:16px 0 4px;color:var(--accent)}
+.manual-body p{margin:0 0 9px}
+.manual-body ul,.manual-body ol{margin:0 0 10px;padding-left:20px}
+.manual-body li{margin:0 0 5px}
+.manual-body code{font-family:var(--font-mono);font-size:12px;background:var(--surface-2);
+  padding:1px 4px;border-radius:2px}
+.manual-body pre{background:var(--surface-2);border:1px solid var(--line);border-radius:4px;
+  padding:11px 13px;overflow-x:auto;margin:0 0 10px}
+.manual-body pre code{background:none;padding:0;font-size:11.5px;line-height:1.5}
+.manual-body .rule{background:var(--surface-2);border-left:3px solid var(--accent);
+  padding:9px 12px;margin:9px 0;border-radius:0 3px 3px 0}
+.note{margin:0;padding:12px 14px;border:1px solid var(--line);border-radius:4px;
+  background:var(--surface);color:var(--muted);font-size:13px}
+.note p{margin:0 0 8px}
+.note code{font-family:var(--font-mono);font-size:12px;background:var(--surface-2);padding:1px 4px;border-radius:2px}
+.note b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top topbtn">
+  <div>
+  <h1>Line-Based Lens Calibration</h1>
+  <p class="sub">Click roughly along an object you know to be straight in the real world. The tool solves for the radial distortion that makes those objects straight. Everything runs locally in your browser; the image is never uploaded.</p>
+  </div>
+  <button id="b-sample">Sample frame</button>
+</header>
+
+<div class="grid">
+  <div class="leftcol">
+  <section class="stage">
+    <div class="bar">
+      <button id="b-load">Load frame</button>
+      <input type="file" id="file" accept="image/*" hidden>
+      <span class="sep"></span>
+      <button id="b-fin">Finish object (Enter)</button>
+      <button id="b-undo">Undo point</button>
+      <span class="sp"></span>
+      <button id="b-play" class="primary">Play transition</button>
+      <button id="b-arrows" class="on">Arrows</button>
+      <button id="b-bound" class="on">Border</button>
+      <button id="b-grid">Grid</button>
+      <button id="b-manual">User manual</button>
+    </div>
+    <div class="holder" id="holder">
+      <canvas id="gl" width="1200" height="700"></canvas>
+      <canvas id="ov" width="1200" height="700"></canvas>
+    </div>
+    <div class="zbadge" title="Mouse wheel: zoom in / out. Shift + drag or middle button: pan (only when zoomed in)."><span id="z-lab">1.0x</span><button id="z-fit">fit</button></div>
+    <div class="sliders">
+      <div class="sl">
+        <div class="lbl"><span>Transition - raw to corrected</span><b id="v-t">0.00</b></div>
+        <input type="range" id="s-t" min="0" max="1" step="0.002" value="0">
+        <div class="marks"><button data-t="0">Raw</button><button data-t="1">Corrected</button></div>
+      </div>
+      <div class="sl">
+        <div class="lbl"><span>Framing (alpha)</span><b id="v-z">1.000</b></div>
+        <input type="range" id="s-z" min="0.55" max="1.70" step="0.002" value="1">
+        <div class="marks"><button id="z-neutral">Neutral scale</button><button id="z-all">All pixels</button><button id="z-none">No gaps</button></div>
+      </div>
+      <div class="sl">
+        <div class="lbl"><span>Exaggeration (visual only)</span><b id="v-g">1.0x</b></div>
+        <input type="range" id="s-g" min="0.2" max="8" step="0.05" value="1">
+        <div class="marks"><button data-g="1">1x</button><button data-g="4">4x</button><button data-g="8">8x</button></div>
+        <div class="gnote" id="v-gr">deviation at this exaggeration: -</div>
+      </div>
+    </div>
+    <div class="foot">
+      <span id="f-size">-</span><span id="f-cur">-</span><span id="f-lines">0 objects</span><span id="f-src">-</span><span id="f-gl">-</span>
+    </div>
+  </section>
+    <div class="belowrow">
+    <section class="card">
+      <h2><span class="n">02</span> Solution</h2>
+      <label class="check"><input type="checkbox" id="opt-k2"> Solve k2 as well (unstable on noisy data)</label>
+      <div class="k2box" id="k2box" hidden>
+        <div id="k2txt"></div>
+        <button id="b-k2on">Enable k2 and solve again</button>
+      </div>
+      <p class="stale" id="staleBox" hidden>Objects changed - the result is out of date. Press "Solve coefficients".</p>
+      <div class="btnrow">
+        <button id="b-fit" class="primary">Solve coefficients</button>
+        <button id="b-reset">Reset</button>
+      </div>
+      <div class="manrow">
+        <span>k1 manually:</span>
+        <input type="number" id="man-k1" step="0.01" value="0">
+        <button id="b-apply">apply</button>
+      </div>
+      <dl class="res">
+        <dt>k1</dt><dd id="r-k1">0.0000</dd>
+        <dt>k2</dt><dd id="r-k2">0.0000</dd>
+        <dt>cx, cy</dt><dd id="r-c">-</dd>
+        <dt>Deviation from straight</dt><dd id="r-r0">-</dd>
+        <dt>Check object</dt><dd id="r-ho">-</dd>
+        <dt>Corner displacement</dt><dd id="r-cor">-</dd>
+        <dt>Net shape change</dt><dd id="r-net">-</dd>
+      </dl>
+      <canvas id="prof" width="320" height="104"></canvas>
+      <div class="covbox" id="covbox" hidden></div>
+      <div class="verdict" id="vd">Waiting for a solution.</div>
+      <div class="btnrow" style="margin-top:8px"><button id="b-unc">Uncertainty and leave-one-out test</button><span class="rec" id="rec-unc" hidden>* Recorded to log</span></div>
+      <p class="hint" style="margin:2px 0 0">Uncertainty: re-runs the solve hundreds of times with marking noise added, and reports how much the coefficients move. Leave-one-out: removes each object in turn to show whether the result rests on a single object.</p>
+      <div id="uncout" class="mono-out"></div>
+    </section>
+    <section class="card">
+      <h2><span class="n">03</span> Blind test</h2>
+      <p class="hint" style="margin-top:4px">Blind test: a known amount of distortion is added to the loaded frame, the marked points are moved with it, and everything is solved again from scratch. If the tool works, the recovered coefficients should match the expected ones. The frame and points are restored automatically afterwards.</p>
+      <div class="manrow">
+        <span>k1 to add:</span>
+        <input type="number" id="test-k" step="0.02" value="0.12">
+        <button id="b-test">Blind test</button>
+        <span class="rec" id="rec-test" hidden>* Recorded to log</span>
+      </div>
+      <div id="testout" class="mono-out"></div>
+    </section>
+
+
+
+    <section class="card">
+      <h2><span class="n">04</span> Export</h2>
+      <textarea id="out" readonly spellcheck="false"></textarea>
+      <div class="btnrow"><button id="b-copy">Copy to clipboard</button>
+        <button id="b-log" class="primary">Save &amp; Download solution (.json)</button></div>
+      <p class="hint" style="margin:0">The log includes the marked point coordinates, so the solution can be recomputed independently from this file.</p>
+      <div class="toast" id="toast"></div>
+    </section>
+<div class="note">
+  <p><b>Why k2 is off by default.</b> Hand-clicked points carry a position error of a few pixels. On a weakly distorted frame the curvature to be measured is also a few pixels, so the signal sits inside the noise. Solving both coefficients at once lets k2 absorb that noise and settle on a large value with the opposite sign to k1. The result is a profile that rises and then falls with radius, which no real lens does. A single coefficient stays correct under the same noise. If the profile plot peaks and drops, the solution is not physical.</p>
+  <p><b>Choosing objects.</b> The solver recovers how bending grows from the centre of the frame towards the corners. It can only see that growth where you give it data. One object that crosses a wide range of distances from the centre constrains the shape of the curve; several short objects all sitting at the same distance do not, however many you mark.</p>
+  <p><b>Model.</b> <code>r_corrected = r_raw * (1 + k1*r^2 + k2*r^4)</code>, where <code>r</code> = radius / (half the diagonal). The coefficients are defined in the correction direction; <code>cv2.undistort</code> expects the opposite direction.</p>
+</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <section class="card">
+      <h2><span class="n">01</span> Objects</h2>
+      <p class="hint"><b>Zoom:</b> mouse wheel over the frame. Once zoomed in, Shift + drag or the middle mouse button pans. "fit" at the bottom right returns to the whole frame.</p>
+      <p class="hint"><b>Pick objects well.</b> One long line that passes near the frame centre and reaches both edges is worth more than ten short ones. A line pointing straight at the centre carries no information at all, however long it is, because distortion stretches it along its own direction without bending it.</p>
+      <p class="hint" style="margin:2px 0 0"><b>Every object has a role.</b> <span style="color:var(--accent);font-weight:600">fit</span> = the coefficients are derived from this object. <span style="color:var(--warn);font-weight:600">check</span> = this object is left out of the solve entirely, and is only used to see whether the result straightens it too. Mark at least three objects. More can help, but not always - it depends on how well you pick them and on what the scene offers. With three, use two for the fit and one as a check.</p>
+            <p class="hint" style="margin:2px 0 0">Hover a row in the list below to highlight that object on the frame. The number badge on each object matches the number in the list.</p>
+      <div id="statline" class="statline">-</div>
+      <ul class="lines" id="ls"></ul>
+      <p class="empty" id="ls-empty">No objects yet.</p>
+      <p class="hint" style="margin:2px 0 0"><span style="color:#4cc38a">▬▬</span> the straight line the solver fitted through each object (shown in the corrected view)</p>
+      <div class="btnrow"><button id="b-each">Check whether the objects agree</button></div>
+      <div id="eachout" class="mono-out"></div>
+    </section>
+
+
+  </div>
+</div>
+</div>
+<div class="manual-wrap" id="manualWrap" hidden>
+  <div class="manual" role="dialog" aria-label="User manual">
+    <div class="manual-head">
+      <h2>User manual</h2>
+      <button id="b-manual-close">Close</button>
+    </div>
+    <div class="manual-body">
+
+<h3>1. What this tool is</h3>
+<p>This is a lens distortion corrector for cameras you cannot reach. In factories and warehouses, CCTV cameras are usually mounted high up and were installed years ago. Walking a checkerboard in front of them, at the right distances and angles, is often impractical and sometimes impossible.</p>
+<p>Instead of a checkerboard, this tool uses objects that are already in the scene and that you know to be straight in the real world: a column, a building edge, a floor joint, a shelf edge, a crane rail. You mark them, and the tool searches for the radial distortion correction that makes them as straight as possible.</p>
+<p>The method is not new. In the literature it is called <b>plumb-line calibration</b> and it goes back to the 1970s. What this tool adds is a workflow you can run on a single frame in a browser, plus several checks that tell you when the answer should not be trusted.</p>
+<p>Everything runs locally. The frame you load never leaves your computer; there is no server and nothing is uploaded.</p>
+
+<h3>2. What it does not do</h3>
+<p><b>It does not give you the camera matrix.</b> No focal length, no principal point. The reason is mathematical, not a missing feature: a straight line stays straight under any focal length, so a criterion built on straightness carries no information about focal length at all. However many objects you mark, it will not appear.</p>
+<p><b>It does not reproduce the lens's true coefficients.</b> Straightness is a weak constraint on the shape of the radial profile: two noticeably different corrections can straighten the same objects to within a fraction of a pixel while moving a pixel near the frame edge tens of pixels differently. So the coefficients here do not match a checkerboard calibration of the same camera, and should not be expected to.</p>
+<p><b>What I did verify is the thing that actually matters.</b> On my own camera I ran both methods side by side - a 54-frame checkerboard calibration through OpenCV, and this tool on two different scenes - and compared them over the region the checkerboard genuinely covered. Once a ground-plane homography was fitted on the corrected image, the two agreed to within roughly one to four centimetres on the ground depending on the scene, for a camera about 6 m up covering some 10 m of width.</p>
+<p><b>What that means in practice.</b> <b><u>It is enough for zone intrusion, proximity and speed work, where tolerances are in metres. It is not enough for camera pose or 3D measurement; those still need a checkerboard.</u></b></p>
+
+<h3>3. Quick start</h3>
+<ol>
+  <li>Press <b>Sample frame</b> to see the tool working on a synthetic image, or <b>Load frame</b> to use your own.</li>
+  <li>Click 4 to 10 points roughly along an object you know is straight. Press <b>Enter</b> (or <b>Finish object</b>).</li>
+  <li>Repeat for at least three objects. Set one of them to <b>check</b> in the list.</li>
+  <li>Press <b>Solve coefficients</b>.</li>
+  <li>Drag the <b>Transition</b> slider from Raw to Corrected, or press <b>Play transition</b>, and look at the result.</li>
+  <li>Read the verdict box and any orange warning. Run <b>Blind test</b> and <b>Uncertainty</b>.</li>
+  <li>Copy k1 and k2 from the results, or save the full log.</li>
+</ol>
+
+<h3>4. The sample frame</h3>
+<p>The sample frame is a synthetic image generated in the browser. Straight lines are drawn, then bent by a distortion with coefficients the tool picks and knows exactly. Those true values are printed at the bottom of the image.</p>
+<p>It exists so you can check the tool against a known answer before trusting it on your own data. After solving, the verdict line reports the true k1 next to the recovered one. If they are close, the measurement chain is working on your machine, in your browser.</p>
+<p>Use it to learn the workflow, and come back to it whenever you suspect something is wrong.</p>
+
+<h3>5. Loading your own frame</h3>
+<p>Press <b>Load frame</b> and pick any still image: a screenshot from your video management system, a frame grabbed from an RTSP stream, a photo. The frame is processed at its own resolution; it is only scaled on screen to fit the window.</p>
+<p>A few things matter in the frame you choose:</p>
+<ul>
+  <li><b>No digital correction in the camera.</b> If your camera has a lens distortion correction (LDC) setting and it is on, the frame is already partly corrected and the result will describe whatever is left, not the lens.</li>
+  <li><b>Sharp and well lit.</b> You will be clicking on edges; motion blur and noise cost you accuracy.</li>
+  <li><b>No cropping or resizing after capture.</b> Cropping moves the optical centre away from the middle of the frame and the model assumes it is in the middle. Uniform scaling is harmless.</li>
+  <li><b>The same camera settings</b> you will use in production. On a varifocal lens, changing zoom or focus changes the distortion.</li>
+</ul>
+<p>If you have marked objects on your own frame and then press Load frame or Sample frame, the tool asks for confirmation first, because your work would be lost.</p>
+
+<h3>6. Marking objects - the part that decides your result</h3>
+<p>This is where almost all the quality of the answer comes from. Everything else is arithmetic.</p>
+
+<h4>What makes a good object</h4>
+<p>The tool is trying to work out how bending grows as you move from the centre of the frame towards the corners. It can only see that growth where you give it data. So the single most valuable object you can mark is:</p>
+<p class="rule"><b>One long line that passes near the centre of the frame and runs out to both edges.</b></p>
+<p>Such a line crosses a wide range of distances from the centre all by itself, which is what pins down the shape of the curve. One object like that is worth more than ten short ones.</p>
+
+<h4>Lines that carry no information</h4>
+<p>A line that points straight at the centre of the frame carries <b>no information at all</b>, however long it is. Radial distortion pushes pixels outwards from the centre, so it stretches such a line along its own direction without bending it. The tool detects these and leaves them out of the solve; they appear greyed out in the list.</p>
+<p>Before marking something, picture an arrow from the centre of the frame to that object. If the object is perpendicular to the arrow, it is useful. If it is parallel to the arrow, it is not.</p>
+<p>A line passing exactly through the centre is the worst case. A line passing <i>near</i> the centre, offset a little, and running to both edges is the best case.</p>
+
+<h4>Things that are not actually straight</h4>
+<p>Choose objects whose straightness you would be willing to defend:</p>
+<ul>
+  <li><b>Rope, string and cable sag</b> under their own weight. Power lines are curves, not lines. Never use them.</li>
+  <li><b>Plastered cornices, rendered wall junctions and old timber</b> can be a few pixels off straight over a long span, which is the same size as the signal being measured.</li>
+  <li><b>Rails and channels in a floor may genuinely curve.</b> Follow them with your eye before marking.</li>
+  <li><b>Lens-distorted edges you have already corrected</b> elsewhere in a pipeline are not raw data.</li>
+</ul>
+<p>If you need to create a straight object on purpose: a strip of tape stuck to the floor, a chalk line snapped on a slab, or a long aluminium profile all work well and none of them sag. (Still easier than asking the facility for a forklift, a man-up or a ladder so you can climb up and wave a checkerboard around.)</p>
+
+<h4>How to click</h4>
+<p>Put 4 to 10 points along the object, spread over its whole length rather than bunched at one end. The points do not need to be evenly spaced. Zoom in with the mouse wheel where the edge is thin; once you are zoomed in, pan with Shift + drag or the middle mouse button. Press Enter when done.</p>
+<p>You can drag a point afterwards to adjust it. <b>Undo point</b> removes the last point of the object you are drawing. <b>del</b> in the list removes a whole object.</p>
+
+<h3>7. Object roles: fit and check</h3>
+<p>Every object in the list is either in the fit or used as a check.</p>
+<ul>
+  <li><b>fit</b> - the coefficients are derived from this object.</li>
+  <li><b>check</b> - this object is left out of the solve entirely. Afterwards the tool measures how straight it became. Because the solver never saw it, this is a real test and not a self-assessment.</li>
+</ul>
+<p>Always keep at least one check object, and choose one that is visibly bent to begin with. <b><u>A check object that was almost straight already proves nothing.</u></b></p>
+<p>Mark at least three objects. Beyond that, more is not automatically better: it depends on how well chosen they are and on what the scene actually offers. Three well-placed objects beat ten poor ones. With three, use two for the fit and one as a check; with eight, two or three checks are reasonable.</p>
+
+<h3>8. Solving</h3>
+<h4>Solve coefficients</h4>
+<p>Runs the search. The tool looks for the correction that minimises the average bending of all the objects in the fit, measured as the perpendicular spread of the points around the straight line fitted through them, divided by the object's length so that long and short objects count equally.</p>
+
+<h4>k1 and k2</h4>
+<p>k1 alone describes a simple barrel or pincushion. k2 adds a second term that lets the curve change shape towards the edges.</p>
+<p>k2 is off by default and that is deliberate. Hand-clicked points carry a position error of a few pixels. On a weakly distorted frame the curvature being measured is also a few pixels, so the signal sits inside the noise. Solving both coefficients at once lets k2 absorb that noise and settle on a large value with the opposite sign to k1, producing a profile that rises and then falls with radius. No real lens does that.</p>
+<p>After a solve, the tool checks whether a second term would genuinely help and offers it with a one-click button if so. It looks at two things: whether the flatness actually improves, and whether the per-object solutions vary systematically with distance from the centre, which would be the physical reason for needing a second term. If the first is true but the second is not, treat the recommendation with caution.</p>
+
+<h4>Why the optical centre is fixed at the middle of the frame</h4>
+<p>The optical centre is where the lens axis actually meets the sensor. It is almost never the exact middle of the frame. On a typical camera it sits a few tens of pixels off, which corresponds to only a few tens of micrometres of mechanical eccentricity in the lens mount - an entirely ordinary assembly tolerance.</p>
+<p>This tool assumes it is the middle anyway, and that is a deliberate choice. The only evidence for the true centre in straight-line data is a small asymmetry between how much objects bend on opposite sides of the frame. Measured on a real camera that asymmetry is around six to eight percent, which is far too weak to recover the centre reliably. An earlier version of this tool let the solver search for it; the result barely improved while the extra freedom gave the solver somewhere to hide error. The option was removed.</p>
+<p>The cost of the assumption is real but bounded: it is the main reason the coefficients here differ from a checkerboard calibration. It is also largely absorbed when you fit a homography on the corrected image, which is why the end-to-end error stays at the centimetre level.</p>
+
+<h4>k1 manually</h4>
+<p>Type a value and press apply to see what any coefficient does, without solving. Useful for building intuition and for reproducing someone else's number.</p>
+
+<h3>9. The view controls</h3>
+<ul>
+  <li><b>Transition</b> - fades between the raw frame and the corrected one. The two buttons jump straight to either end. <b>Play transition</b> animates it, which is the easiest way to see what changed.</li>
+  <li><b>Framing (alpha)</b> - correcting an image pushes pixels outwards, so either the corners spill outside the frame or gaps appear at the edges. This slider chooses the compromise. <i>Neutral scale</i> keeps the scale at the centre unchanged, <i>All pixels</i> keeps everything at the cost of empty corners, <i>No gaps</i> crops until no gap is left.</li>
+  <li><b>Exaggeration</b> - multiplies the correction for display only. It does not change the solution. Use it to see the shape of a weak correction.</li>
+  <li><b>Arrows</b> - after a solve, each arrow shows where one pixel is moved to: tail at the raw position, head at the corrected one. They are short near the centre and long towards the corners, which is the visual signature of radial distortion. They change with the solution and with the two sliders above.</li>
+  <li><b>Border</b> - draws where the edge of the raw frame ends up after correction.</li>
+  <li><b>Grid</b> - a plain reference grid over the image.</li>
+  <li><b>Mouse wheel</b> zooms, <b>Shift + drag</b> or the middle button pans once you are zoomed in, <b>fit</b> at the bottom right returns to the whole frame.</li>
+</ul>
+<p>Hovering a row in the object list highlights that object on the frame and fades the others. The number badge on the frame matches the number in the list.</p>
+
+<h3>10. Reading the results</h3>
+<ul>
+  <li><b>k1, k2</b> - the coefficients, in the correction direction (see section 14).</li>
+  <li><b>cx, cy</b> - the optical centre used. Always the middle of the frame; see section 8 for why.</li>
+  <li><b>Deviation from straight</b> - the average bending of the objects in the fit, before and after. This is the number the solver minimised, so it will always improve. It is a progress indicator, not evidence.</li>
+  <li><b>Check object</b> - the same measurement on the object the solver never saw. <b>This is the number that matters.</b> A large improvement here means the correction generalises beyond the data it was fitted to.</li>
+  <li><b>Corner displacement</b> - how far the extreme corner of the frame moves. Gives you a feel for the strength of the correction.</li>
+  <li><b>Net shape change</b> - the corner movement after removing the part that is just a uniform zoom. A pure zoom does not fix distortion, so this is the part that actually did something.</li>
+  <li><b>The profile plot</b> - magnification against radius. It should rise smoothly from left to right. If it peaks and falls, the solution is not physical.</li>
+</ul>
+
+<h3>11. Warnings and what they mean</h3>
+<ul>
+  <li><b>"The selected objects may be too weak"</b> (orange box) - the marked objects do not span enough of the range of distances from the centre. The box shows which radius bands are covered and how far each object reaches by itself. Fix it by adding one long object from near the centre out to an edge, not by adding more short ones.</li>
+  <li><b>"The solution hit the upper bound"</b> - the search ran to its limit. Almost always caused by an object that carries no real information letting the solver run free. Look for a greyed-out object or one that points at the centre.</li>
+  <li><b>"The correction made the objects more bent"</b> - the result is worse than doing nothing. Do not use it.</li>
+  <li><b>"The profile peaks and then falls"</b> - the magnification curve is not monotonic, which no lens produces. Turn k2 off.</li>
+  <li><b>"The check object got worse"</b> - the correction works on the objects it was fitted to but not elsewhere in the frame. Usually means the objects are clustered in one region.</li>
+  <li><b>"No check object"</b> - you have no independent test. Set one object to check.</li>
+  <li><b>"Fewer than 2 objects in the fit"</b> - the whole result rests on a single reference.</li>
+  <li><b>"carried too little information and were left out"</b> - these objects point at the centre or are too short to bend measurably. Not an error; the tool is protecting the solve.</li>
+</ul>
+
+<h3>12. The checks, and what each one can and cannot tell you</h3>
+<h4>Check object (holdout)</h4>
+<p>An object left out of the solve, measured afterwards. Tests whether the correction generalises. The strongest single check in the tool.</p>
+
+<h4>Blind test</h4>
+<p>The tool adds a known amount of extra distortion to your frame, moves your marked points with it, and solves everything again from scratch. If the measurement chain works, the recovered coefficients should match the predicted ones. The criterion is the difference between the two correction curves in pixels, not the coefficients themselves, because k1 and k2 can substitute for each other.</p>
+<p>Your frame and points are restored automatically afterwards, so you can run it as often as you like.</p>
+
+<h4>Uncertainty and leave-one-out</h4>
+<p>Uncertainty re-runs the solve hundreds of times with marking noise added, and reports how much the coefficients move. Leave-one-out removes each object in turn and reports the result each time. If one object moves the answer by more than twice the uncertainty, the tool says so by name; that object is carrying the result on its own and you should add another of similar length.</p>
+
+<h4>Check whether the objects agree</h4>
+<p>Solves each object on its own and lists what each one wants. If one object demands a very different coefficient from the rest, it is usually not actually straight. This is how you find a curved rail you mistook for a line.</p>
+
+<h4>What none of them can tell you</h4>
+<p>All of these measure <b>self-consistency</b>. A systematic error that affects every object in the same way will pass all of them. They can tell you when to distrust a result; they cannot promise that a result is correct. The only external check is a calibration from a different method on the same camera.</p>
+
+<h3>13. Using the result in your pipeline</h3>
+<p>Copy k1 and k2 from the results panel, or press <b>Save &amp; Download solution</b> for a JSON file that also contains every marked point, so the solution can be recomputed independently. <i>(A ready script that reads that downloaded JSON file and applies it to an RTSP stream is given below.)</i></p>
+<p>The correction is a fixed mapping for a given camera, so you build the remap once and apply it to every frame. In Python with OpenCV:</p>
+<pre><code>import json, cv2, numpy as np
+
+SOLUTION = "solution_log.json"        # the file this tool downloaded
+STREAM   = "rtsp://user:pass@192.168.1.64:554/Streaming/Channels/101"
+
+def load_solution(path):
+    with open(path, encoding="utf-8") as f:
+        s = json.load(f)["solution"]
+    return s["k1"], s["k2"], s.get("framing_zoom", 1.0)
+
+def build_maps(w, h, k1, k2, zoom=1.0):
+    R = np.hypot(w, h) / 2.0          # same normalisation as the tool
+    cx, cy = w / 2.0, h / 2.0
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    dx, dy = (xx - cx) / zoom, (yy - cy) / zoom
+    rc = np.hypot(dx, dy) / R         # radius wanted in the corrected image
+    rr = rc.copy()
+    for _ in range(20):               # invert rr*(1+k1*rr^2+k2*rr^4) = rc
+        f  = rr * (1 + k1*rr**2 + k2*rr**4) - rc
+        df = 1 + 3*k1*rr**2 + 5*k2*rr**4
+        rr -= f / np.maximum(df, 1e-6)
+    s = np.where(rc &gt; 1e-9, rr / np.maximum(rc, 1e-9), 1.0)
+    return (cx + dx*s).astype(np.float32), (cy + dy*s).astype(np.float32)
+
+k1, k2, zoom = load_solution(SOLUTION)
+cap = cv2.VideoCapture(STREAM)
+ok, frame = cap.read()
+h, w = frame.shape[:2]
+mx, my = build_maps(w, h, k1, k2, zoom)    # built once, reused every frame
+
+while ok:
+    fixed = cv2.remap(frame, mx, my, cv2.INTER_LINEAR)
+    # run your detection / tracking / homography on "fixed"
+    ok, frame = cap.read()</code></pre>
+<p>The maps are built once and reused, so the per-frame cost is a single <code>remap</code>, which is cheap enough for real time even on an edge device.</p>
+<p>If you then need ground coordinates, fit your homography <b>on the corrected image</b>, using four or more points whose positions on the ground you know. Fitting it on the corrected image is what makes the method work: the homography absorbs the part of the residual error that behaves like a projective transform.</p>
+
+<h3>14. The model</h3>
+<p><code>r_corrected = r_raw * (1 + k1*r^2 + k2*r^4)</code>, where <code>r</code> = radius from the optical centre divided by half the image diagonal.</p>
+<p>Note the direction. These coefficients describe <b>correction</b>: given a point you observe, where should it go. OpenCV's coefficients describe <b>distortion</b>: given an ideal point, where does the lens put it. Both describe the same lens from opposite ends.</p>
+<p>The directions are not related by a sign flip. Converting between them means sampling one map and refitting the other. Converting to OpenCV's format also needs a focal length, because OpenCV divides the radius by the focal length while this tool divides it by half the diagonal, and this tool does not produce a focal length.</p>
+<p>So do not paste k1 and k2 from here into <code>cv2.undistort</code>. Use the code in section 13 instead.</p>
+
+<h3>15. Honest limitations</h3>
+<ul>
+  <li>No camera matrix, no focal length, no principal point.</li>
+  <li>No tangential distortion. The model is purely radial and assumes the optical centre is the middle of the frame unless you ask otherwise.</li>
+  <li>The coefficients will not match a checkerboard calibration of the same camera, for the reasons in section 2.</li>
+  <li>Accuracy depends on the scene. A frame with long, well-spread straight objects gives a much better result than one without, and no amount of care in clicking makes up for a scene that has nothing useful in it.</li>
+  <li>The checks detect inconsistent data. They do not detect a consistent but wrong answer.</li>
+  <li>This is a working tool for a specific situation, not a replacement for proper calibration and not a commercial product.</li>
+</ul>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var glc=document.getElementById("gl"), ovc=document.getElementById("ov");
+var ov=ovc.getContext("2d");
+var gl=glc.getContext("webgl")||glc.getContext("experimental-webgl");
+var prof=document.getElementById("prof"), pc=prof.getContext("2d");
+
+var S={hl:null,W:1200,H:700,cx:600,cy:350,k1:0,k2:0,t:0,zoom:1,gain:1,
+  lines:[],active:[],drag:null,isSample:true,trueK1:0.18,trueK2:0.03,
+  d0:null,d1:null,stale:false,
+  vz:1,vox:0,voy:0,pan:null,unc:null,k2advice:null,
+  r0:null,r1:null,ho:null,showArrows:true,showBound:true,showGrid:false,
+  img:null,gray:null,srcName:"-",anim:null};
+function Rn(){return Math.hypot(S.W,S.H)/2;}
+var KMAX=1.50, INFO_MIN=0.40;
+function fitLines(){return S.lines.filter(function(L){
+  return !L.hold && L.pts.length>=3 && !(L.info!==undefined && L.info<INFO_MIN);});}
+function lineInfo(L){
+  if(L.pts.length<3) return 0;
+  var a=lineStat(L.pts,0,0,S.W/2,S.H/2).px;
+  var b=lineStat(L.pts,0.08,0,S.W/2,S.H/2).px;
+  return Math.abs(b-a);
+}
+function refreshInfo(){S.lines.forEach(function(L){L.info=lineInfo(L);});}
+
+/* ---------- model ---------- */
+function corr(px,py,k1,k2,cx,cy,R){
+  var dx=px-cx,dy=py-cy,r=Math.hypot(dx,dy)/R,s=1+k1*r*r+k2*r*r*r*r;
+  return [cx+dx*s,cy+dy*s];
+}
+function invR(ro,k1,k2){
+  var ri=ro;
+  for(var i=0;i<12;i++){
+    var r2=ri*ri,r4=r2*r2,f=ri*(1+k1*r2+k2*r4)-ro,df=1+3*k1*r2+5*k2*r4;
+    if(Math.abs(df)<1e-5)break;
+    ri-=f/df; if(ri<0)ri=0;
+  }
+  return ri;
+}
+function eff(){var m=S.t*S.gain;return{k1:S.k1*m,k2:S.k2*m,z:1+(S.zoom-1)*S.t};}
+function toScreen(p){
+  var e=eff(),q=corr(p.x,p.y,e.k1,e.k2,S.cx,S.cy,Rn());
+  return [S.W/2+(q[0]-S.cx)*e.z, S.H/2+(q[1]-S.cy)*e.z];
+}
+
+/* ---------- grayscale + subpixel edge snap ---------- */
+function buildGray(){
+  var c=document.createElement("canvas");c.width=S.W;c.height=S.H;
+  var g=c.getContext("2d");g.drawImage(S.img,0,0,S.W,S.H);
+  var d=g.getImageData(0,0,S.W,S.H).data;
+  var a=new Float32Array(S.W*S.H);
+  for(var i=0,j=0;i<a.length;i++,j+=4) a[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2];
+  S.gray=a;
+}
+function lum(x,y){
+  if(!(x>=1&&y>=1&&x<=S.W-2&&y<=S.H-2)) return NaN;
+  var x0=x|0,y0=y|0,fx=x-x0,fy=y-y0,g=S.gray,W=S.W;
+  var a=g[y0*W+x0],b=g[y0*W+x0+1],c=g[(y0+1)*W+x0],d=g[(y0+1)*W+x0+1];
+  return (a+(b-a)*fx)+((c+(d-c)*fx)-(a+(b-a)*fx))*fy;
+}
+function resample(pts,step,maxN){
+  var out=[],i,seg=[],total=0;
+  for(i=0;i<pts.length-1;i++){
+    var L=Math.hypot(pts[i+1].x-pts[i].x,pts[i+1].y-pts[i].y);
+    seg.push(L);total+=L;
+  }
+  if(total<1) return pts.slice();
+  var n=Math.min(maxN,Math.max(pts.length,Math.round(total/step)+1));
+  for(var k=0;k<n;k++){
+    var d=total*k/(n-1),acc=0,si=0;
+    while(si<seg.length-1&&acc+seg[si]<d){acc+=seg[si];si++;}
+    var t=seg[si]>0?(d-acc)/seg[si]:0;
+    out.push({x:pts[si].x+(pts[si+1].x-pts[si].x)*t, y:pts[si].y+(pts[si+1].y-pts[si].y)*t});
+  }
+  return out;
+}
+function solveN(A,B){
+  var n=B.length,M=[],i,j,k;
+  for(i=0;i<n;i++){M.push(A[i].slice());M[i].push(B[i]);}
+  for(i=0;i<n;i++){
+    var p=i;
+    for(k=i+1;k<n;k++) if(Math.abs(M[k][i])>Math.abs(M[p][i])) p=k;
+    if(Math.abs(M[p][i])<1e-12) return null;
+    var t=M[i];M[i]=M[p];M[p]=t;
+    for(k=0;k<n;k++){
+      if(k===i) continue;
+      var f=M[k][i]/M[i][i];
+      for(j=i;j<=n;j++) M[k][j]-=f*M[i][j];
+    }
+  }
+  var out=[];
+  for(i=0;i<n;i++) out.push(M[i][n]/M[i][i]);
+  return out;
+}
+function polyfit(ts,ps,deg){
+  var n=deg+1,A=[],B=[],i,r,c;
+  for(r=0;r<n;r++){A.push(new Array(n).fill(0));B.push(0);}
+  for(i=0;i<ts.length;i++){
+    var pw=[1];
+    for(c=1;c<n;c++) pw.push(pw[c-1]*ts[i]);
+    for(r=0;r<n;r++){
+      for(c=0;c<n;c++) A[r][c]+=pw[r]*pw[c];
+      B[r]+=pw[r]*ps[i];
+    }
+  }
+  return solveN(A,B);
+}
+function polyval(co,t){var v=0;for(var i=co.length-1;i>=0;i--)v=v*t+co[i];return v;}
+function solve3(A,B){
+  var M=[[A[0][0],A[0][1],A[0][2],B[0]],[A[1][0],A[1][1],A[1][2],B[1]],[A[2][0],A[2][1],A[2][2],B[2]]];
+  for(var i=0;i<3;i++){
+    var p=i;
+    for(var r=i+1;r<3;r++) if(Math.abs(M[r][i])>Math.abs(M[p][i])) p=r;
+    if(Math.abs(M[p][i])<1e-9) return null;
+    var tmp=M[i];M[i]=M[p];M[p]=tmp;
+    for(var r2=0;r2<3;r2++){
+      if(r2===i)continue;
+      var f=M[r2][i]/M[i][i];
+      for(var c=i;c<4;c++) M[r2][c]-=f*M[i][c];
+    }
+  }
+  return [M[0][3]/M[0][0],M[1][3]/M[1][1],M[2][3]/M[2][2]];
+}
+
+/* ---------- cost ---------- */
+function lineStat(pts,k1,k2,cx,cy){
+  var R=Rn(),n=pts.length,i,cp=new Array(n),mx=0,my=0;
+  for(i=0;i<n;i++){cp[i]=corr(pts[i].x,pts[i].y,k1,k2,cx,cy,R);mx+=cp[i][0];my+=cp[i][1];}
+  mx/=n;my/=n;
+  var sxx=0,syy=0,sxy=0;
+  for(i=0;i<n;i++){var ax=cp[i][0]-mx,ay=cp[i][1]-my;sxx+=ax*ax;syy+=ay*ay;sxy+=ax*ay;}
+  var t=(sxx+syy)/2,d=Math.sqrt(Math.max(0,((sxx-syy)/2)*((sxx-syy)/2)+sxy*sxy));
+  var perp=Math.sqrt(Math.max(0,t-d)/n);
+  var chord=Math.hypot(cp[n-1][0]-cp[0][0],cp[n-1][1]-cp[0][1]);
+  var chord0=Math.hypot(pts[n-1].x-pts[0].x,pts[n-1].y-pts[0].y);
+  return {perp:perp,chord:chord,px:chord>1e-6?perp*(chord0/chord):perp};
+}
+function monoPenalty(k1,k2){
+  var prev=1,pen=0;
+  for(var i=1;i<=24;i++){
+    var r=1.15*i/24,s=1+k1*r*r+k2*r*r*r*r;
+    if(s<prev) pen+=(prev-s)*(prev-s);
+    prev=s;
+  }
+  return pen*400;
+}
+function cost(k1,k2,cx,cy){
+  var tot=0,m=0,Ls=fitLines();
+  for(var i=0;i<Ls.length;i++){
+    var st=lineStat(Ls[i].pts,k1,k2,cx,cy);
+    if(st.chord<1e-6) continue;
+    var v=st.perp/st.chord;
+    tot+=v*v; m++;
+  }
+  return (m?tot/m:0)+monoPenalty(k1,k2);
+}
+// the straight line the solver itself fits through the corrected points.
+// its direction comes from the data - nothing here assumes horizontal.
+function fittedLine(L,k1,k2,cx,cy){
+  var R=Rn(),n=L.pts.length,cp=[],mx=0,my=0,i;
+  for(i=0;i<n;i++){var q=corr(L.pts[i].x,L.pts[i].y,k1,k2,cx,cy,R);cp.push(q);mx+=q[0];my+=q[1];}
+  mx/=n;my/=n;
+  var sxx=0,syy=0,sxy=0;
+  for(i=0;i<n;i++){var ax=cp[i][0]-mx,ay=cp[i][1]-my;sxx+=ax*ax;syy+=ay*ay;sxy+=ax*ay;}
+  var th=0.5*Math.atan2(2*sxy,sxx-syy);
+  var dx=Math.cos(th),dy=Math.sin(th),t0=1e9,t1=-1e9;
+  for(i=0;i<n;i++){
+    var t=(cp[i][0]-mx)*dx+(cp[i][1]-my)*dy;
+    if(t<t0)t0=t; if(t>t1)t1=t;
+  }
+  return {mx:mx,my:my,dx:dx,dy:dy,t0:t0,t1:t1};
+}
+function meanPx(k1,k2,cx,cy){
+  var tot=0,m=0,Ls=fitLines();
+  for(var i=0;i<Ls.length;i++){tot+=lineStat(Ls[i].pts,k1,k2,cx,cy).px;m++;}
+  return m?tot/m:0;
+}
+function holdPx(k1,k2,cx,cy){
+  var hs=S.lines.filter(function(L){return L.hold&&L.pts.length>=3;});
+  if(!hs.length) return null;
+  var tot=0;
+  hs.forEach(function(L){tot+=lineStat(L.pts,k1,k2,cx,cy).px;});
+  return tot/hs.length;
+}
+
+/* ---------- Nelder-Mead ---------- */
+function nm(f,x0,step,iters){
+  var n=x0.length,sx=[x0.slice()],i,j;
+  for(i=0;i<n;i++){var q=x0.slice();q[i]+=step[i];sx.push(q);}
+  var vs=sx.map(f);
+  for(var it=0;it<iters;it++){
+    var o=vs.map(function(v,k){return k;}).sort(function(a,b){return vs[a]-vs[b];});
+    sx=o.map(function(k){return sx[k];});vs=o.map(function(k){return vs[k];});
+    var w=n,sec=n-1,c=new Array(n).fill(0);
+    for(i=0;i<n;i++)for(j=0;j<n;j++)c[j]+=sx[i][j];
+    for(j=0;j<n;j++)c[j]/=n;
+    var xr=c.map(function(cj,k){return cj+(cj-sx[w][k]);}),fr=f(xr);
+    if(fr<vs[0]){
+      var xe=c.map(function(cj,k){return cj+2*(cj-sx[w][k]);}),fe=f(xe);
+      if(fe<fr){sx[w]=xe;vs[w]=fe;}else{sx[w]=xr;vs[w]=fr;}
+    }else if(fr<vs[sec]){sx[w]=xr;vs[w]=fr;}
+    else{
+      var xc=c.map(function(cj,k){return cj+0.5*(sx[w][k]-cj);}),fc=f(xc);
+      if(fc<vs[w]){sx[w]=xc;vs[w]=fc;}
+      else{for(i=1;i<=n;i++){for(j=0;j<n;j++)sx[i][j]=sx[0][j]+0.5*(sx[i][j]-sx[0][j]);vs[i]=f(sx[i]);}}
+    }
+  }
+  var b=0;for(i=1;i<vs.length;i++)if(vs[i]<vs[b])b=i;
+  return {x:sx[b],f:vs[b]};
+}
+
+/* ---------- WebGL ---------- */
+var prog,loc={},tex;
+var VS="attribute vec2 a;varying vec2 v;void main(){v=vec2((a.x+1.0)*0.5,(1.0-a.y)*0.5);gl_Position=vec4(a,0.0,1.0);}";
+var FS="precision highp float;varying vec2 v;uniform sampler2D u_t;uniform vec2 u_sz;uniform vec2 u_c;"+
+"uniform float u_R,u_k1,u_k2,u_z;void main(){vec2 o=v*u_sz;vec2 q=u_c+(o-u_sz*0.5)/u_z;vec2 d=q-u_c;"+
+"float ro=length(d)/u_R;float ri=ro;for(int i=0;i<10;i++){float r2=ri*ri;float r4=r2*r2;"+
+"float f=ri*(1.0+u_k1*r2+u_k2*r4)-ro;float df=1.0+3.0*u_k1*r2+5.0*u_k2*r4;"+
+"ri=ri-f/max(abs(df),0.05)*sign(df);}float s=ro>1e-6?ri/ro:1.0;vec2 src=u_c+d*s;vec2 uv=src/u_sz;"+
+"if(uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0){gl_FragColor=vec4(0.04,0.05,0.06,1.0);return;}"+
+"gl_FragColor=texture2D(u_t,uv);}";
+function sh(t,s){var o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);
+  if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(o));return o;}
+function initGL(){
+  if(!gl){document.getElementById("f-gl").textContent="no WebGL";return false;}
+  prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));
+  gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+  var q=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,q);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  var a=gl.getAttribLocation(prog,"a");gl.enableVertexAttribArray(a);
+  gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
+  ["u_t","u_sz","u_c","u_R","u_k1","u_k2","u_z"].forEach(function(k){loc[k]=gl.getUniformLocation(prog,k);});
+  tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  document.getElementById("f-gl").textContent="WebGL ready";return true;
+}
+function upload(src){gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src);}
+function drawGL(){
+  if(!gl)return;var e=eff();
+  gl.viewport(0,0,S.W,S.H);gl.useProgram(prog);
+  gl.uniform1i(loc.u_t,0);gl.uniform2f(loc.u_sz,S.W,S.H);gl.uniform2f(loc.u_c,S.cx,S.cy);
+  gl.uniform1f(loc.u_R,Rn());gl.uniform1f(loc.u_k1,e.k1);gl.uniform1f(loc.u_k2,e.k2);gl.uniform1f(loc.u_z,e.z);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+
+/* ---------- overlay ---------- */
+var COL=["#ff8a3d","#2bb0d6","#8ec63f","#e04a8a","#f2c230","#a07ce0","#56d6b0","#ff6b6b"];
+function drawOverlay(){
+  ov.clearRect(0,0,S.W,S.H);
+  var e=eff(),R=Rn(),i;
+  var VS=1/Math.max(1,S.vz);   // yakinlasinca isaretler ekranda ayni boyda kalsin
+  if(S.showGrid){
+    ov.strokeStyle="rgba(255,255,255,.18)";ov.lineWidth=1*VS;
+    for(i=1;i<10;i++){var x=S.W*i/10;ov.beginPath();ov.moveTo(x,0);ov.lineTo(x,S.H);ov.stroke();}
+    for(i=1;i<6;i++){var y=S.H*i/6;ov.beginPath();ov.moveTo(0,y);ov.lineTo(S.W,y);ov.stroke();}
+  }
+  if(S.showBound&&S.t>0.001){
+    ov.strokeStyle="rgba(78,168,224,.9)";ov.lineWidth=2*VS;ov.setLineDash([8*VS,6*VS]);
+    ov.beginPath();var N=80,first=true;
+    function edge(x,y){
+      var q=corr(x,y,e.k1,e.k2,S.cx,S.cy,R);
+      var sx=S.W/2+(q[0]-S.cx)*e.z,sy=S.H/2+(q[1]-S.cy)*e.z;
+      if(first){ov.moveTo(sx,sy);first=false;}else ov.lineTo(sx,sy);
+    }
+    for(i=0;i<=N;i++)edge((S.W-1)*i/N,0);
+    for(i=0;i<=N;i++)edge(S.W-1,(S.H-1)*i/N);
+    for(i=N;i>=0;i--)edge((S.W-1)*i/N,S.H-1);
+    for(i=N;i>=0;i--)edge(0,(S.H-1)*i/N);
+    ov.closePath();ov.stroke();ov.setLineDash([]);
+  }
+  if(S.showArrows&&(S.k1!==0||S.k2!==0)){
+    var nx=16,ny=9;ov.lineWidth=1.6*VS;
+    for(i=1;i<nx;i++)for(var j=1;j<ny;j++){
+      var p={x:S.W*i/nx,y:S.H*j/ny},a=[p.x,p.y];
+      var qq=corr(p.x,p.y,S.k1*S.gain,S.k2*S.gain,S.cx,S.cy,R);
+      var b=[S.W/2+(qq[0]-S.cx)*S.zoom,S.H/2+(qq[1]-S.cy)*S.zoom];
+      var dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+      if(len<1.2)continue;
+      var al=Math.min(1,len/26);
+      ov.strokeStyle="rgba(255,138,61,"+(0.35+0.55*al)+")";
+      ov.beginPath();ov.moveTo(a[0],a[1]);ov.lineTo(b[0],b[1]);ov.stroke();
+      var ang=Math.atan2(dy,dx),hl=Math.min(8*VS,len*0.45);
+      ov.beginPath();ov.moveTo(b[0],b[1]);
+      ov.lineTo(b[0]-hl*Math.cos(ang-0.42),b[1]-hl*Math.sin(ang-0.42));
+      ov.moveTo(b[0],b[1]);
+      ov.lineTo(b[0]-hl*Math.cos(ang+0.42),b[1]-hl*Math.sin(ang+0.42));
+      ov.stroke();
+    }
+  }
+  /* Nesne listesinde fare bir satirin uzerindeyken o nesne one cikarilir,
+     digerleri soluklasir. On dort nesnede renkler birbirine benzedigi icin
+     hangisinin hangisi oldugu baska turlu anlasilmiyordu.                 */
+  var all=S.lines.concat(S.active.length?[{pts:S.active,tmp:true}]:[]);
+  var hl=(S.hl!==null&&S.hl!==undefined)?S.hl:-1;
+  all.forEach(function(L,li){
+    var col=L.tmp?"#ffffff":COL[li%COL.length];
+    var sec=(hl>=0&&li!==hl);          // vurgulanan baskasiysa bu soluk
+    var vur=(li===hl);
+    ov.globalAlpha=sec?0.22:1;
+    var pts=L.pts.map(toScreen);
+    if(pts.length>1){
+      if(vur){                          // once kalin bir hale
+        ov.beginPath();ov.moveTo(pts[0][0],pts[0][1]);
+        for(var h=1;h<pts.length;h++)ov.lineTo(pts[h][0],pts[h][1]);
+        ov.strokeStyle="rgba(255,255,255,.85)";ov.lineWidth=7*VS;
+        ov.lineJoin="round";ov.lineCap="round";ov.stroke();
+      }
+      ov.beginPath();ov.moveTo(pts[0][0],pts[0][1]);
+      for(var k=1;k<pts.length;k++)ov.lineTo(pts[k][0],pts[k][1]);
+      ov.strokeStyle=col;ov.lineWidth=(L.hold?1.6:2.2)*(vur?1.8:1);
+      if(L.hold)ov.setLineDash([6*VS,5*VS]);
+      ov.stroke();ov.setLineDash([]);
+      ov.beginPath();ov.moveTo(pts[0][0],pts[0][1]);ov.lineTo(pts[pts.length-1][0],pts[pts.length-1][1]);
+      ov.strokeStyle="rgba(255,255,255,.55)";ov.lineWidth=1*VS;ov.setLineDash([7*VS,6*VS]);ov.stroke();ov.setLineDash([]);
+    }
+    var rad=(L.snapped?2.2:5)*(vur?1.7:1);
+    pts.forEach(function(m){
+      ov.beginPath();ov.arc(m[0],m[1],rad*VS,0,6.2832);
+      ov.fillStyle=col;ov.fill();
+      if(!L.snapped||vur){ov.strokeStyle=vur?"rgba(255,255,255,.95)":"rgba(0,0,0,.65)";
+        ov.lineWidth=(vur?2:1.5)*VS;ov.stroke();}
+    });
+    /* nesne numarasi: her zaman gorunur, vurguluyken buyur */
+    if(!L.tmp&&pts.length){
+      var a=pts[0],b=pts[pts.length-1];
+      var ex=a[0]+(a[0]-b[0])*0.06, ey=a[1]+(a[1]-b[1])*0.06;
+      var rr=(vur?11:8)*VS;
+      /* kenardan tasan rozet gorunmez kalirdi: kare icine cekiyoruz */
+      ex=Math.max(rr+2*VS,Math.min(S.W-rr-2*VS,ex));
+      ey=Math.max(rr+2*VS,Math.min(S.H-rr-2*VS,ey));
+      ov.beginPath();ov.arc(ex,ey,rr,0,6.2832);
+      ov.fillStyle=col;ov.fill();
+      ov.strokeStyle="rgba(0,0,0,.7)";ov.lineWidth=1.5*VS;ov.stroke();
+      ov.fillStyle="#fff";ov.textAlign="center";ov.textBaseline="middle";
+      ov.font=(vur?700:600)+" "+(vur?15:11)*VS+"px ui-monospace,Menlo,Consolas,monospace";
+      ov.fillText(String(li+1),ex,ey);
+    }
+    ov.globalAlpha=1;
+  });
+  function rScreen(pt){var e2=eff();return [S.W/2+(pt.x-S.cx)*e2.z, S.H/2+(pt.y-S.cy)*e2.z];}
+  // the computed "where it actually landed" line, only meaningful once fully corrected
+  if(S.r1!==null&&S.t>0.9){
+    S.lines.forEach(function(L){
+      if(L.pts.length<3) return;
+      var fl=fittedLine(L,S.k1,S.k2,S.cx,S.cy);
+      var pad=(fl.t1-fl.t0)*0.04;
+      var A=rScreen({x:fl.mx+fl.dx*(fl.t0-pad), y:fl.my+fl.dy*(fl.t0-pad)});
+      var B=rScreen({x:fl.mx+fl.dx*(fl.t1+pad), y:fl.my+fl.dy*(fl.t1+pad)});
+      ov.strokeStyle="rgba(76,195,138,.95)";ov.lineWidth=2*VS;ov.setLineDash([]);
+      ov.beginPath();ov.moveTo(A[0],A[1]);ov.lineTo(B[0],B[1]);ov.stroke();
+      [A,B].forEach(function(mm){
+        var px=-fl.dy,py=fl.dx;
+        ov.beginPath();
+        ov.moveTo(mm[0]-px*7*VS,mm[1]-py*7*VS);ov.lineTo(mm[0]+px*7*VS,mm[1]+py*7*VS);
+        ov.stroke();
+      });
+    });
+  }
+  var cm=[S.W/2,S.H/2];
+  ov.strokeStyle="rgba(255,255,255,.8)";ov.lineWidth=1.5*VS;
+  ov.beginPath();ov.moveTo(cm[0]-12*VS,cm[1]);ov.lineTo(cm[0]+12*VS,cm[1]);
+  ov.moveTo(cm[0],cm[1]-12*VS);ov.lineTo(cm[0],cm[1]+12*VS);ov.stroke();
+}
+function render(){drawGL();drawOverlay();}
+
+/* ---------- radial profile chart ---------- */
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function drawProfile(){
+  var W=prof.width,H=prof.height;
+  pc.clearRect(0,0,W,H);
+  var fg=css("--fg"),mu=css("--muted"),ac=css("--accent"),bad=css("--bad"),ln=css("--line");
+  var pad={l:34,r:8,t:10,b:18},iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+  var rmax=1.2,N=120,vals=[],mn=1,mx=1,i;
+  for(i=0;i<=N;i++){var r=rmax*i/N,s=1+S.k1*r*r+S.k2*r*r*r*r;vals.push(s);if(s<mn)mn=s;if(s>mx)mx=s;}
+  var pad2=Math.max(0.01,(mx-mn)*0.25);mn-=pad2;mx+=pad2;
+  function X(r){return pad.l+iw*r/rmax;}
+  function Y(s){return pad.t+ih*(1-(s-mn)/(mx-mn));}
+  // covered radius range
+  var rs=[],R=Rn();
+  S.lines.forEach(function(L){L.pts.forEach(function(p){rs.push(Math.hypot(p.x-S.cx,p.y-S.cy)/R);});});
+  if(rs.length){
+    var r1=Math.min.apply(null,rs),r2=Math.max.apply(null,rs);
+    pc.fillStyle="rgba(13,108,168,.13)";
+    pc.fillRect(X(r1),pad.t,Math.max(1,X(r2)-X(r1)),ih);
+  }
+  pc.strokeStyle=ln;pc.lineWidth=1;
+  pc.beginPath();pc.moveTo(pad.l,Y(1));pc.lineTo(W-pad.r,Y(1));pc.stroke();
+  var nonmono=false;
+  pc.beginPath();
+  for(i=0;i<=N;i++){
+    var x=X(rmax*i/N),y=Y(vals[i]);
+    if(i===0)pc.moveTo(x,y);else pc.lineTo(x,y);
+    if(i>0&&vals[i]<vals[i-1]-1e-6)nonmono=true;
+  }
+  pc.strokeStyle=nonmono?bad:ac;pc.lineWidth=2;pc.stroke();
+  pc.fillStyle=mu;pc.font="10px "+css("--font-mono");
+  pc.fillText(mx.toFixed(3),2,pad.t+4);
+  pc.fillText(mn.toFixed(3),2,pad.t+ih+3);
+  pc.fillText("r=0",pad.l-4,H-5);
+  pc.fillText("1.2",W-pad.r-14,H-5);
+  pc.fillStyle=nonmono?bad:mu;
+  pc.fillText(nonmono?"profile peaks and falls - not physical":"magnification s(r) - monotonic",pad.l+6,pad.t+10);
+}
+
+/* ---------- framing ---------- */
+function zNeutral(){var rr=0.7;return 1/(1+S.k1*rr*rr+S.k2*rr*rr*rr*rr);}
+function zRefs(){
+  var R=Rn(),maxX=0,maxY=0,minX=1e9,minY=1e9,i;
+  function acc(x,y,side,tb){
+    var q=corr(x,y,S.k1,S.k2,S.cx,S.cy,R);
+    var ax=Math.abs(q[0]-S.cx),ay=Math.abs(q[1]-S.cy);
+    if(ax>maxX)maxX=ax;if(ay>maxY)maxY=ay;
+    if(side&&ax<minX)minX=ax;if(tb&&ay<minY)minY=ay;
+  }
+  for(i=0;i<=120;i++){var t=i/120;
+    acc(0,t*(S.H-1),true,false);acc(S.W-1,t*(S.H-1),true,false);
+    acc(t*(S.W-1),0,false,true);acc(t*(S.W-1),S.H-1,false,true);}
+  return {all:Math.min((S.W/2)/Math.max(maxX,1e-6),(S.H/2)/Math.max(maxY,1e-6)),
+          none:Math.max((S.W/2)/Math.max(minX,1e-6),(S.H/2)/Math.max(minY,1e-6))};
+}
+
+/* ---------- sample ---------- */
+function makeSample(){
+  var W=1200,H=700;S.W=W;S.H=H;S.cx=W/2;S.cy=H/2;
+  var off=document.createElement("canvas");off.width=W;off.height=H;
+  var g=off.getContext("2d"),R=Math.hypot(W,H)/2,ccx=W/2,ccy=H/2;
+  function dist(x,y){
+    var dx=x-ccx,dy=y-ccy,rc=Math.hypot(dx,dy)/R;
+    if(rc<1e-9)return[x,y];
+    var k=invR(rc,S.trueK1,S.trueK2)/rc;return[ccx+dx*k,ccy+dy*k];
+  }
+  function samp(x1,y1,x2,y2,n){var o=[];for(var i=0;i<n;i++){var t=i/(n-1);o.push([x1+(x2-x1)*t,y1+(y2-y1)*t]);}return o;}
+  function poly(p){g.beginPath();for(var i=0;i<p.length;i++){var d=dist(p[i][0],p[i][1]);if(i===0)g.moveTo(d[0],d[1]);else g.lineTo(d[0],d[1]);}}
+  g.fillStyle="#1b2127";g.fillRect(0,0,W,H);
+  poly(samp(-250,300,1450,300,40).concat(samp(1450,780,-250,780,40)));g.closePath();g.fillStyle="#2a3139";g.fill();
+  poly(samp(-250,-80,1450,-80,40).concat(samp(1450,150,-250,150,40)));g.closePath();g.fillStyle="#151a1f";g.fill();
+  g.lineWidth=7;g.strokeStyle="#7d8893";
+  [[-250,118,1450,118],[-250,198,1450,198]].forEach(function(r){poly(samp(r[0],r[1],r[2],r[3],60));g.stroke();});
+  g.lineWidth=9;g.strokeStyle="#d4761f";
+  [[-250,392,1450,392],[-250,578,1450,578]].forEach(function(r){poly(samp(r[0],r[1],r[2],r[3],60));g.stroke();});
+  g.lineWidth=7;
+  [[300,300,300,780],[900,300,900,780]].forEach(function(r){poly(samp(r[0],r[1],r[2],r[3],50));g.stroke();});
+  g.lineWidth=14;g.strokeStyle="#4b545e";
+  [[115,150,115,720],[1085,150,1085,720]].forEach(function(r){poly(samp(r[0],r[1],r[2],r[3],50));g.stroke();});
+  g.fillStyle="#3b434c";
+  [[420,440,180,90],[640,620,230,70]].forEach(function(b){
+    poly(samp(b[0],b[1],b[0]+b[2],b[1],12).concat(samp(b[0]+b[2],b[1],b[0]+b[2],b[1]+b[3],8))
+      .concat(samp(b[0]+b[2],b[1]+b[3],b[0],b[1]+b[3],12)).concat(samp(b[0],b[1]+b[3],b[0],b[1],8)));
+    g.closePath();g.fill();});
+  g.font="600 20px 'IBM Plex Mono',monospace";g.fillStyle="#cfd6dd";
+  g.fillText("11-17-2024  Sun  16:32:48",18,32);
+  g.font="600 14px 'IBM Plex Mono',monospace";g.fillStyle="#9aa4ae";
+  g.fillText("SYNTHETIC TEST FRAME  -  true k1="+S.trueK1.toFixed(3)+"  k2="+S.trueK2.toFixed(3),18,H-16);
+  S.img=off;S.isSample=true;S.srcName="sample frame (synthetic)";
+  var seeds=[[-120,118,1320,118],[-120,392,1320,392],[115,170,115,700],[-120,198,1320,198]];
+  S.lines=seeds.map(function(s,i){
+    return {pts:samp(s[0],s[1],s[2],s[3],6).map(function(p){
+      var d=dist(p[0],p[1]);
+      return {x:d[0]+(Math.random()-.5)*5,y:d[1]+(Math.random()-.5)*5};
+    }).filter(function(p){return p.x>-20&&p.x<W+20&&p.y>-20&&p.y<H+20;}),
+    snapped:false, hold:(i===3)};
+  }).filter(function(L){return L.pts.length>=3;});
+  // the seeded objects are distorted copies of known straight lines, so their
+  var trueSeeds=[[-120,118,1320,118],[-120,392,1320,392],[115,170,115,700]];
+  S.lines.forEach(function(L,i){
+    if(i>=trueSeeds.length) return;
+    var t=trueSeeds[i];
+  });
+  S.active=[];
+}
+
+/* ---------- UI ---------- */
+function resizeCanvases(){
+  glc.width=S.W;glc.height=S.H;ovc.width=S.W;ovc.height=S.H;
+  document.getElementById("f-size").textContent=S.W+" x "+S.H;
+}
+/* Isaretler degisince eski kor test ve hata payi sonuclari artik baska bir
+   nesne kumesine ait; logda tasimak yaniltici olur, ikisini de dusuruyoruz. */
+function rozet(id,ac){ var e=document.getElementById(id); if(e) e.hidden=!ac; }
+function markStale(){ if(S.r1!==null) S.stale=true;
+  S.unc=null; var u=document.getElementById("uncout"); if(u) u.innerHTML="";
+  S.blind=null; var t=document.getElementById("testout"); if(t) t.innerHTML="";
+  rozet("rec-unc",false); rozet("rec-test",false); }
+function refreshList(){
+  refreshInfo();
+  var ul=document.getElementById("ls");ul.innerHTML="";
+  document.getElementById("ls-empty").style.display=(S.lines.length||S.active.length)?"none":"";
+  S.lines.forEach(function(L,i){
+    var st=lineStat(L.pts,S.k1,S.k2,S.cx,S.cy),st0=lineStat(L.pts,0,0,S.cx,S.cy);
+    var li=document.createElement("li");if(L.hold)li.className="hold";
+    li.onmouseenter=function(){S.hl=i;li.classList.add("hl");drawOverlay();};
+    li.onmouseleave=function(){S.hl=null;li.classList.remove("hl");drawOverlay();};
+    var ix=document.createElement("span");ix.className="idx";
+    ix.style.background=COL[i%COL.length];ix.textContent=String(i+1);
+    var sw=document.createElement("span");sw.className="sw";sw.style.background=COL[i%COL.length];
+    var nm2=document.createElement("span");nm2.className="nm";
+    nm2.textContent=L.pts.length+" pts";
+    if(L.info!==undefined&&L.info<INFO_MIN&&!L.hold){nm2.textContent+=" no info";li.style.opacity=".55";}
+    var rr=document.createElement("span");rr.className="rr"+(st.px>1.5?" hi":"");
+    rr.textContent=st0.px.toFixed(2)+"→"+st.px.toFixed(2);
+    rr.title=L.wander?("edge wander ~"+L.wander.toFixed(2)+" px"):"";
+    var role=document.createElement("span");role.className="role";
+    var segA=document.createElement("button");
+    segA.className="seg"+(L.hold?"":" act");
+    segA.textContent="fit";
+    segA.title="this object is used to compute the coefficients";
+    segA.onclick=function(){ if(L.hold){L.hold=false;markStale();refreshList();updFoot();} };
+    var segB=document.createElement("button");
+    segB.className="seg"+(L.hold?" act hd":"");
+    segB.textContent="check";
+    segB.title="left out of the solve, used only to test the result";
+    segB.onclick=function(){ if(!L.hold){L.hold=true;markStale();refreshList();updFoot();} };
+    role.appendChild(segA);role.appendChild(segB);
+    var del=document.createElement("button");del.textContent="del";
+    del.onclick=function(){S.lines.splice(i,1);markStale();refreshList();updFoot();render();};
+    var row1=document.createElement("div");row1.className="lrow";
+    row1.appendChild(ix);row1.appendChild(sw);row1.appendChild(nm2);row1.appendChild(rr);
+    var row2=document.createElement("div");row2.className="lrow";
+    row2.appendChild(role);
+    var spacer=document.createElement("span");spacer.style.flex="1 1 auto";
+    row2.appendChild(spacer);
+    row2.appendChild(del);
+    li.appendChild(row1);li.appendChild(row2);
+    ul.appendChild(li);
+  });
+  if(S.active.length){
+    var li2=document.createElement("li");
+    li2.innerHTML='<span class="sw" style="background:#fff"></span><span class="nm">drawing - '+S.active.length+' pts</span>';
+    ul.appendChild(li2);
+  }
+}
+function updFoot(){
+  var rs=document.getElementById("statline");
+  if(rs){
+    var nl=S.lines.length, nf=fitLines().length, nh=S.lines.filter(function(L){return L.hold;}).length;
+    var msg=nl+" objects  -  "+nf+" in fit, "+nh+" as check";
+    var cls="statline";
+    if(nl===0){}
+    else if(nf<2){ msg+="   at least 2 objects must be in the fit"; cls+=" none"; }
+    else if(nh===0){ msg+="   no check object: the result cannot be tested"; cls+=" none"; }
+    else cls+=" ok";
+    rs.className=cls; rs.textContent=msg;
+  }
+  var st=document.getElementById("staleBox");
+  if(st) st.hidden=!S.stale;
+  document.getElementById("f-lines").innerHTML=fitLines().length+" in fit + "+
+    S.lines.filter(function(L){return L.hold;}).length+" check";
+  document.getElementById("f-src").textContent=S.srcName;
+  showCoverage();
+}
+function radiusSpread(){
+  var rs=[],R=Rn();
+  fitLines().forEach(function(L){L.pts.forEach(function(p){rs.push(Math.hypot(p.x-S.cx,p.y-S.cy)/R);});});
+  if(rs.length<2)return 0;
+  return Math.max.apply(null,rs)-Math.min.apply(null,rs);
+}
+
+/* ===== NESNELERIN KAREYE YAYILIMI =====
+   Arac, bukulmenin merkezden kosee dogru nasil arttigini cozmeye calisir.
+   Butun nesneler ayni yaricap kusaginda toplanirsa bu egrinin yalnizca bir
+   dilimi gorulur, geri kalani tahmine kalir. Pratikte en sik rastlanan
+   basarisizlik sebebi bu oldugu icin olculup ayri bir kutuda, somut bir
+   oneriyle birlikte gosteriliyor.
+   Kusaklar: yaricap 0-1 araligi 0.2'lik bes dilime bolunur; bir dilim en az
+   uc nokta aliyorsa "dolu" sayilir.                                        */
+var COV_IC=0.40, COV_DIS=0.85, COV_DAR=0.35, COV_NOKTA=3, COV_TEK=0.40;
+function coverage(){
+  var R=Rn(),rs=[],bands=[0,0,0,0,0],tekil=[];
+  fitLines().forEach(function(L,i){
+    var yerel=[];
+    L.pts.forEach(function(p){
+      var r=Math.hypot(p.x-S.W/2,p.y-S.H/2)/R;
+      rs.push(r); yerel.push(r);
+      var b=Math.floor(r/0.2); if(b>4)b=4; if(b<0)b=0;
+      bands[b]++;
+    });
+    if(yerel.length>=2){
+      var a=Math.min.apply(null,yerel), z=Math.max.apply(null,yerel);
+      tekil.push({no:S.lines.indexOf(L)+1, ad:L.name||("object "+(i+1)),
+                  min:a, max:z, span:z-a});
+    }
+  });
+  if(rs.length<2) return null;
+  var mn=Math.min.apply(null,rs), mx=Math.max.apply(null,rs);
+  var dolu=bands.filter(function(c){return c>=COV_NOKTA;}).length;
+  /* En genis TEK nesnenin kat ettigi yaricap araligi. Egrinin SEKLINI
+     belirleyen olcu bu: farkli nesnelerin farkli yaricaplarda olmasi
+     ayni sey degil, cunku o durumda her nesne kendi bandinda dogru olan
+     sonsuz sayida egriye uyar. Tek bir nesnenin icinden gecen yaricap
+     araligi genisse, egri o aralikta gercekten sabitlenir.               */
+  var enGenis=tekil.length?Math.max.apply(null,tekil.map(function(t){return t.span;})):0;
+  tekil.sort(function(a,b){return b.span-a.span;});
+  var sorun=[];
+  if(mn>COV_IC)        sorun.push("ic");
+  if(mx<COV_DIS)       sorun.push("dis");
+  if(mx-mn<COV_DAR)    sorun.push("dar");
+  if(dolu<3)           sorun.push("kume");
+  if(enGenis<COV_TEK)  sorun.push("uzun");
+  return {min:mn,max:mx,span:mx-mn,bands:bands,dolu:dolu,
+          tekil:tekil,en_genis:enGenis,sorun:sorun};
+}
+function showCoverage(){
+  var box=document.getElementById("covbox");
+  if(!box) return;
+  var c=coverage();
+  if(!c||!c.sorun.length){ box.hidden=true; return; }
+  var etiket=["0-0.2","0.2-0.4","0.4-0.6","0.6-0.8","0.8-1.0"];
+  var bar='<div class="bands">';
+  for(var i=0;i<5;i++) bar+='<span class="'+(c.bands[i]>=COV_NOKTA?"on":"")+'">'+etiket[i]+'</span>';
+  bar+='</div><div class="bandlbl"><span>frame centre</span><span>frame corner</span></div>';
+
+  var neden=[];
+  if(c.sorun.indexOf("uzun")>=0) neden.push("<b>no single object reaches from the centre towards the edge</b>");
+  if(c.sorun.indexOf("ic")>=0)  neden.push("nothing marked near the centre of the frame");
+  if(c.sorun.indexOf("dis")>=0) neden.push("nothing reaches the outermost band of the frame");
+  if(c.sorun.indexOf("dar")>=0) neden.push("every object sits in a narrow band");
+  if(c.sorun.indexOf("kume")>=0&&c.sorun.indexOf("dar")<0) neden.push("the marked regions are not spread across the frame");
+
+  var h='<h4>The selected objects may be too weak</h4>';
+  h+='<p>'+neden.join(", ")+'. The solver cannot see how bending grows from the centre towards the corner '+
+     'this way; it has to look at one slice of the curve and guess the rest.</p>';
+  h+=bar;
+  if(c.sorun.indexOf("uzun")>=0)
+    h+='<p>Having different objects at different distances is not enough. <b>A single object has to '+
+       'cross a wide range of distances by itself</b> - only that pins down the shape of the curve. '+
+       'The widest one here covers '+c.en_genis.toFixed(2)+', and at least '+COV_TEK.toFixed(2)+' is needed.</p>';
+  h+='<p><b>What to do:</b> add one straight object that runs <u>in a single piece</u> from near the '+
+     'middle of the frame out towards an edge. A strip of tape stuck to the floor, a chalk line, or '+
+     'a long straight profile all work. <b>Do not use rope or string</b>, they sag under their own weight.</p>';
+  h+='<p>If you cannot shoot a new frame, look for a long edge in the scene: a table edge, a floor '+
+     'joint or floorboard line, a shelf, a column, a door frame, a wall junction, a ceiling line. '+
+     'Extending a short edge helps more than adding another short one.</p>';
+  if(c.tekil&&c.tekil.length){
+    h+='<div class="why">distance covered per object (widest first)<br>';
+    c.tekil.slice(0,6).forEach(function(t){
+      h+='&nbsp;object '+t.no+': '+t.min.toFixed(2)+' - '+t.max.toFixed(2)+
+         '  ('+t.span.toFixed(2)+')'+(t.span>=COV_TEK?' good':'')+'<br>';
+    });
+    h+='overall '+c.min.toFixed(2)+' - '+c.max.toFixed(2)+'   /   bands filled '+c.dolu+'/5</div>';
+  }
+  box.innerHTML=h; box.hidden=false;
+}
+function updResults(){
+  var R=Rn();
+  document.getElementById("r-k1").textContent=S.k1.toFixed(4);
+  document.getElementById("r-k2").textContent=S.k2.toFixed(4);
+  document.getElementById("r-c").textContent=Math.round(S.cx)+", "+Math.round(S.cy);
+  document.getElementById("r-r0").textContent=S.r0===null?"-":(S.r0.toFixed(2)+" → "+S.r1.toFixed(2)+" px");
+  document.getElementById("r-ho").textContent=S.ho===null?"-":S.ho.h0.toFixed(2)+" → "+S.ho.h1.toFixed(2)+" px";
+  var cornerShift=(S.k1+S.k2)*R;
+  var sref=1+S.k1*0.49+S.k2*0.2401;
+  var net=((1+S.k1+S.k2)/sref-1)*R;
+  document.getElementById("r-cor").textContent=cornerShift.toFixed(0)+" px";
+  document.getElementById("r-net").textContent=net.toFixed(0)+" px";
+  drawProfile();
+  showCoverage();
+  var vd=document.getElementById("vd");vd.className="verdict";
+  if(S.r1===null){vd.textContent="Waiting for a solution.";exportJSON();return;}
+  var html="",lvl="good";
+  if(S.isSample) html+="<b>Ground truth:</b> true k1="+S.trueK1.toFixed(3)+", found="+S.k1.toFixed(3)+". ";
+  if(S.hitBound){html+="<b>The solution hit the upper bound ("+KMAX.toFixed(2)+"), so it is invalid.</b> An object carrying no information lets the solver run free. ";lvl="bad";}
+  if(S.worse){html+="<b>The correction made the objects more bent, not less.</b> This solution should not be accepted. ";lvl="bad";}
+  var skipped=S.lines.filter(function(L){return !L.hold&&L.pts.length>=3&&L.info!==undefined&&L.info<INFO_MIN;}).length;
+  if(skipped) html+=skipped+" object(s) carried too little information and were left out of the solve. ";
+  html+="Deviation from straight "+S.r0.toFixed(2)+" \u2192 "+S.r1.toFixed(2)+" px. ";
+  if(S.ho) html+="<b>Check object, never used in the solve: "+S.ho.h0.toFixed(2)+" \u2192 "+S.ho.h1.toFixed(2)+" px.</b> ";
+  else { html+="<b>No check object</b> - set one object to 'check'; that is the real test. "; lvl="warn"; }
+  var nonmono=false,prev=1;
+  for(var i=1;i<=24;i++){var r=1.15*i/24,s=1+S.k1*r*r+S.k2*r*r*r*r;if(s<prev-1e-6)nonmono=true;prev=s;}
+  if(nonmono){html+="<b>The profile peaks and then falls</b>, which is not physical; turn k2 off. ";lvl="bad";}
+  var cov=coverage();
+  if(cov&&cov.sorun.length){html+="<b>The objects are not spread well enough across the frame</b> - see the orange box below. ";if(lvl!=="bad")lvl="warn";}
+  if(S.ho&&S.ho.h1>S.ho.h0){html+="<b>The check object got worse</b>; the solution does not generalise to that region. ";lvl="bad";}
+  if(fitLines().length<2){html+="<b>Fewer than 2 objects in the fit</b>; the result rests on a single reference. ";if(lvl!=="bad")lvl="warn";}
+  vd.classList.add(lvl);vd.innerHTML=html;exportJSON();
+}
+function exportJSON(){
+  document.getElementById("out").value=JSON.stringify({
+    model:"radial, correction direction",
+    formula:"r_corrected = r_raw*(1 + k1*r^2 + k2*r^4), r = radius/(0.5*diagonal)",
+    image:{width:S.W,height:S.H},
+    center:{cx:+S.cx.toFixed(2),cy:+S.cy.toFixed(2)},
+    norm_radius:+Rn().toFixed(3),
+    k1:+S.k1.toFixed(6),k2:+S.k2.toFixed(6),zoom:+S.zoom.toFixed(4),
+    rms_before_px:S.r0===null?null:+S.r0.toFixed(3),
+    rms_after_px:S.r1===null?null:+S.r1.toFixed(3),
+    holdout_before_px:S.ho?+S.ho.h0.toFixed(3):null,
+    holdout_after_px:S.ho?+S.ho.h1.toFixed(3):null,
+    fit_lines:fitLines().length
+  },null,2);
+}
+function playTransition(){
+  if(S.anim)cancelAnimationFrame(S.anim);
+  var t0=performance.now(),dur=1500;
+  function step(now){
+    var u=Math.min(1,(now-t0)/dur);
+    var e=u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
+    setT(e,false);
+    if(u<1)S.anim=requestAnimationFrame(step);else S.anim=null;
+  }
+  S.anim=requestAnimationFrame(step);
+}
+function setT(v,stop){if(stop!==false&&S.anim){cancelAnimationFrame(S.anim);S.anim=null;}
+  S.t=v;document.getElementById("s-t").value=v;document.getElementById("v-t").textContent=v.toFixed(2);render();}
+function setZ(v){S.zoom=v;document.getElementById("s-z").value=v;
+  document.getElementById("v-z").textContent=v.toFixed(3);exportJSON();render();}
+function setG(v){
+  S.gain=v;document.getElementById("s-g").value=v;
+  document.getElementById("v-g").textContent=v.toFixed(2)+"x";
+  var el=document.getElementById("v-gr");
+  if(el){
+    if(S.r0===null) el.textContent="deviation at this exaggeration: -";
+    else{
+      var d=meanPx(S.k1*v,S.k2*v,S.cx,S.cy);
+      var best=Math.abs(v-1)<0.03;
+      el.textContent="deviation at this exaggeration: "+d.toFixed(2)+" px"+(best?"  (the solution itself)":"");
+      el.style.color=(d<S.r1-0.02)?"var(--warn)":"var(--muted)";
+    }
+  }
+  render();
+}
+
+/* Hesaba hangi nesnelerin girecegi, nesnenin tasidigi egrilik bilgisine
+   bakilarak secilir; bu bilgi de o anki cozume gore olculur. Dolayisiyla
+   ilk cozumden sonra kume degisebiliyor ve sonuc ikinci basista oturuyordu.
+   Burada kume sabitlenene kadar (en fazla 3 kez) kendimiz tekrarliyoruz.  */
+function doFit(){
+  var onceki="";
+  for(var tur=0; tur<3; tur++){
+    doFitOnce();
+    var imza=fitLines().map(function(L){return S.lines.indexOf(L);}).join(",");
+    if(imza===onceki) break;
+    onceki=imza;
+  }
+}
+function doFitOnce(){
+  if(!fitLines().length){toast("At least one object in the fit is required.","var(--warn)");return;}
+  S.cx=S.W/2;S.cy=S.H/2;
+  S.r0=meanPx(0,0,S.cx,S.cy);
+  var h0=holdPx(0,0,S.cx,S.cy);
+  /* Optik merkez kareyi tam ortasinda varsayiliyor. Gercekte montaj
+     toleransi yuzunden biraz kaymistir ama bu veriden guvenilir sekilde
+     cikmiyor: tek kanit, karenin iki ucundaki yaylarin bukulmesi
+     arasindaki kucuk bir asimetri ve o sinyal cok zayif. Serbest
+     birakmak cozucuye hatayi yutacagi fazladan bir serbestlik veriyordu.  */
+  var useK2=document.getElementById("opt-k2").checked;
+  var res;
+  if(useK2){
+    /* k1 ile k2 birbirinin yerine gecebildigi icin maliyet yuzeyi dar ve
+       kivrimli bir vadi. Tek baslangicla Nelder-Mead bu vadide erken
+       durup daha kotu bir noktayi sonuc diye verebiliyor. Bu yuzden
+       birkac farkli noktadan baslatip en iyisini aliyoruz.             */
+    var f2=function(p){return (Math.abs(p[0])>KMAX||Math.abs(p[1])>KMAX)
+                              ?1e9:cost(p[0],p[1],S.cx,S.cy);};
+    var tek=nm(function(p){return Math.abs(p[0])>KMAX?1e9:cost(p[0],0,S.cx,S.cy);},[0],[0.15],700);
+    var bas=[[0,0],[tek.x[0],0],[tek.x[0]*0.7,tek.x[0]*0.4],
+             [tek.x[0]*0.45,tek.x[0]*0.85],[tek.x[0]*0.25,tek.x[0]*1.2]];
+    res=null;
+    for(var bi=0;bi<bas.length;bi++){
+      var r2=nm(f2,bas[bi],[0.12,0.08],1100);
+      if(!res||r2.f<res.f) res=r2;
+    }
+    S.k1=res.x[0];S.k2=res.x[1];
+  }else{
+    res=nm(function(p){return Math.abs(p[0])>KMAX?1e9:cost(p[0],0,S.cx,S.cy);},[0],[0.15],700);
+    S.k1=res.x[0];S.k2=0;
+  }
+  S.r1=meanPx(S.k1,S.k2,S.cx,S.cy);
+  S.stale=false;
+  S.hitBound=(Math.abs(Math.abs(S.k1)-KMAX)<0.005)||(Math.abs(Math.abs(S.k2)-KMAX)<0.005);
+  S.worse=(S.r1>S.r0+0.01);
+  var h1=holdPx(S.k1,S.k2,S.cx,S.cy);
+  S.ho=(h0!==null&&h1!==null)?{h0:h0,h1:h1}:null;
+  document.getElementById("man-k1").value=S.k1.toFixed(4);
+  setZ(Math.max(0.55,Math.min(1.70,zNeutral())));
+  updResults();refreshList();updFoot();showK2Advice();setG(S.gain);setT(0,true);playTransition();
+}
+/* ===== IKINCI TERIM GEREKLI MI =====
+   Tek bir r^2 terimi gercek objektif profilini tarif edemiyorsa, her nesne
+   kendi bulundugu yaricapta en iyi uyan k1'i ister. O zaman "nesnenin
+   merkeze ortalama uzakligi" ile "nesnenin kendi k1'i" arasinda duzenli bir
+   iliski cikar. Iki olcu birden bakilir:
+     1. bu iliskinin gucu (korelasyon)
+     2. k2 acilinca duzlugun gercekten iyilesip iyilesmedigi
+   Ikincisi asil kanittir; birincisi sebebini aciklar.                     */
+function meanRadius(L){
+  var R=Rn(),t=0,i;
+  for(i=0;i<L.pts.length;i++) t+=Math.hypot(L.pts[i].x-S.W/2,L.pts[i].y-S.H/2)/R;
+  return t/L.pts.length;
+}
+function k2Advice(){
+  var Ls=fitLines();
+  if(Ls.length<3) return null;
+  var rs=[],ks=[],i;
+  for(i=0;i<Ls.length;i++){
+    var f=fitOne(Ls[i]);
+    if(f.k1===null||f.bound) continue;
+    rs.push(meanRadius(Ls[i])); ks.push(f.k1);
+  }
+  if(rs.length<3) return null;
+  var n=rs.length,mr=0,mk=0;
+  for(i=0;i<n;i++){mr+=rs[i];mk+=ks[i];} mr/=n;mk/=n;
+  var sxy=0,sxx=0,syy=0;
+  for(i=0;i<n;i++){var a=rs[i]-mr,b=ks[i]-mk;sxy+=a*b;sxx+=a*a;syy+=b*b;}
+  var corr=(sxx>1e-12&&syy>1e-12)?sxy/Math.sqrt(sxx*syy):0;
+
+  /* k2 acilsa duzluk ne olurdu */
+  var saveK1=S.k1,saveK2=S.k2,saveCx=S.cx,saveCy=S.cy;
+  var one=nm(function(p){return Math.abs(p[0])>KMAX?1e9:cost(p[0],0,S.W/2,S.H/2);},[0],[0.15],700);
+  var f1=meanPx(one.x[0],0,S.W/2,S.H/2);
+  var two=nm(function(p){return (Math.abs(p[0])>KMAX||Math.abs(p[1])>KMAX)?1e9:cost(p[0],p[1],S.W/2,S.H/2);},
+             [0,0],[0.15,0.06],1100);
+  var f2=meanPx(two.x[0],two.x[1],S.W/2,S.H/2);
+  S.k1=saveK1;S.k2=saveK2;S.cx=saveCx;S.cy=saveCy;
+
+  var gain=(f1>1e-9)?(f1-f2)/f1:0;
+  var mono=true,prev=1;
+  for(i=1;i<=24;i++){var r=1.15*i/24,v=1+two.x[0]*r*r+two.x[1]*r*r*r*r;if(v<prev-1e-9)mono=false;prev=v;}
+  return {n:n,corr:corr,flat1:f1,flat2:f2,gain:gain,k1:two.x[0],k2:two.x[1],mono:mono,
+          recommend:(gain>=0.25 && mono && Math.abs(two.x[1])<KMAX-0.01)};
+}
+function showK2Advice(){
+  var box=document.getElementById("k2box");
+  if(!box) return;
+  if(document.getElementById("opt-k2").checked){box.hidden=true;return;}
+  var a=null; try{ a=k2Advice(); }catch(e){ a=null; }
+  S.k2advice=a;
+  if(!a||!a.recommend){box.hidden=true;return;}
+  box.hidden=false;
+  document.getElementById("k2txt").innerHTML =
+    "<b>A second term helps on this data.</b><br>"+
+    "With k2 enabled, deviation from straight goes <b>"+a.flat1.toFixed(2)+" px \u2192 "+a.flat2.toFixed(2)+" px</b> "+
+    "("+Math.round(a.gain*100)+"% better). The resulting values would be k1="+a.k1.toFixed(4)+" / k2="+a.k2.toFixed(4)+
+    ", profil monoton.<br>"+
+    "Likely reason: the per-object solutions vary systematically with distance from the centre "+
+    "(correlation "+a.corr.toFixed(2)+", "+a.n+" objects"+(a.n<4?" - few objects, so this part is weak evidence":"")+"). "+
+    "Tek bir r² terimi bu objektifi tarif etmiyor olabilir.";
+}
+function fitOne(L){
+  var inf=lineInfo(L);
+  if(inf<INFO_MIN) return {k1:null,before:lineStat(L.pts,0,0,S.W/2,S.H/2).px,after:null,info:inf};
+  var save=S.lines;
+  S.lines=[{pts:L.pts,snapped:L.snapped,hold:false,info:inf}];
+  var before=meanPx(0,0,S.W/2,S.H/2);
+  var r=nm(function(p){return Math.abs(p[0])>KMAX?1e9:cost(p[0],0,S.W/2,S.H/2);},[0],[0.15],700);
+  var k=r.x[0], after=meanPx(k,0,S.W/2,S.H/2);
+  S.lines=save;
+  return {k1:k,before:before,after:after,info:inf,bound:Math.abs(Math.abs(k)-KMAX)<0.01};
+}
+function applyManual(){
+  var v=parseFloat(document.getElementById("man-k1").value);
+  if(isNaN(v)) return;
+  S.cx=S.W/2;S.cy=S.H/2;S.k1=v;S.k2=0;
+  S.r0=meanPx(0,0,S.cx,S.cy);
+  S.r1=meanPx(S.k1,0,S.cx,S.cy);
+  var h0=holdPx(0,0,S.cx,S.cy),h1=holdPx(S.k1,0,S.cx,S.cy);
+  S.ho=(h0!==null&&h1!==null)?{h0:h0,h1:h1}:null;
+  setZ(Math.max(0.55,Math.min(1.70,zNeutral())));
+  updResults();refreshList();updFoot();setG(S.gain);setT(1,true);
+}
+/* Kor testin BEKLENEN degeri.
+   Iki radyal duzeltmenin bileskesi tek bir k1 degildir, bu yuzden
+   "dogru cevap" hangi yaricaplara baktiginiza gore degisir. Eski surum
+   bunu 0.2-1.0 araliginda duzgun agirlikli profil uydurmasiyla
+   hesapliyordu; oysa cozucu, nesnelerin GERCEKTEN bulundugu yaricaplarda
+   duzluge bakar. Bu fark, kor testte gercek olmayan bir hata uretiyordu.
+   Yeni yontem: mevcut nesneleri kusursuz duz kabul edip ayni zincirden
+   gecirir ve bu nokta kumesi icin ulasilabilir en iyi tek k1'i bulur.  */
+function perfectStraight(pts,k1,k2){
+  var R=Rn(),n=pts.length,i,C=[],mx=0,my=0;
+  for(i=0;i<n;i++){C.push(corr(pts[i].x,pts[i].y,k1,k2,S.cx,S.cy,R));mx+=C[i][0];my+=C[i][1];}
+  mx/=n;my/=n;
+  var sxx=0,syy=0,sxy=0;
+  for(i=0;i<n;i++){var ax=C[i][0]-mx,ay=C[i][1]-my;sxx+=ax*ax;syy+=ay*ay;sxy+=ax*ay;}
+  var th=0.5*Math.atan2(2*sxy,sxx-syy), ux=Math.cos(th), uy=Math.sin(th);
+  var out=[];
+  for(i=0;i<n;i++){
+    var t=(C[i][0]-mx)*ux+(C[i][1]-my)*uy;
+    out.push({x:mx+ux*t, y:my+uy*t});
+  }
+  return out;
+}
+function toRaw(pts,k1,k2){       // duzeltilmis konum -> ham konum
+  var R=Rn(),out=[],i;
+  for(i=0;i<pts.length;i++){
+    var dx=pts[i].x-S.cx, dy=pts[i].y-S.cy, rc=Math.hypot(dx,dy)/R;
+    if(rc<1e-9){out.push({x:pts[i].x,y:pts[i].y});continue;}
+    var rr=invR(rc,k1,k2), sc=rr/rc;
+    out.push({x:S.cx+dx*sc, y:S.cy+dy*sc});
+  }
+  return out;
+}
+function addDistort(pts,k){      // kor testin kareye uyguladigi bozulmanin aynisi
+  var R=Rn(),out=[],i;
+  for(i=0;i<pts.length;i++){
+    var dx=pts[i].x-S.cx, dy=pts[i].y-S.cy, r=Math.hypot(dx,dy)/R;
+    if(r<1e-9){out.push({x:pts[i].x,y:pts[i].y});continue;}
+    var sc=invR(r,k,0)/r;
+    out.push({x:S.cx+dx*sc, y:S.cy+dy*sc});
+  }
+  return out;
+}
+function setCost(sets,k1,k2){
+  var tot=0,m=0,i;
+  for(i=0;i<sets.length;i++){
+    var st=lineStat(sets[i],k1,k2||0,S.cx,S.cy);
+    if(st.chord<1e-6) continue;
+    var v=st.perp/st.chord; tot+=v*v; m++;
+  }
+  return m?tot/m:0;
+}
+/* Bir nokta kumesi listesini en duz yapan katsayilari bulur.
+   iki=true ise k1 VE k2 birlikte cozulur.
+   Bu onemli: kor testte "beklenen" degeri, cozumun kullandigi terim
+   sayisiyla AYNI sayida terimle hesaplanmali. Tek terimli bir beklenti
+   ile iki terimli bir sonucu karsilastirmak anlamsizdir, cunku iki
+   terimli uyumda k1 her zaman daha kucuk cikar.                        */
+function solveSets(sets,iki){
+  var lo=-0.2, hi=KMAX, i, k, best=null, bv=Infinity;
+  for(i=0;i<=120;i++){ k=lo+(hi-lo)*i/120; var v=setCost(sets,k,0); if(v<bv){bv=v;best=k;} }
+  var step=(hi-lo)/120;
+  for(i=0;i<40;i++){
+    var a=setCost(sets,best-step,0), b=setCost(sets,best+step,0);
+    if(a<bv){bv=a;best=best-step;} else if(b<bv){bv=b;best=best+step;} else step*=0.5;
+  }
+  if(!iki) return {k1:best,k2:0};
+  var f2=function(p){
+      if(Math.abs(p[0])>KMAX||Math.abs(p[1])>KMAX) return 1e9;
+      var pen=0,prev=1,j;
+      for(j=1;j<=24;j++){var rr=1.15*j/24,sv=1+p[0]*rr*rr+p[1]*rr*rr*rr*rr;
+        if(sv<prev)pen+=(prev-sv)*(prev-sv)*1e3; prev=sv;}
+      return setCost(sets,p[0],p[1])+pen;
+    };
+  var bas=[[best,0],[best*0.7,best*0.4],[best*0.4,best*0.9]], r=null, bi;
+  for(bi=0;bi<bas.length;bi++){
+    var rr2=nm(f2,bas[bi],[0.12,0.08],700);
+    if(!r||rr2.f<r.f) r=rr2;
+  }
+  return {k1:r.x[0], k2:r.x[1]};
+}
+function expectedAfter(kBefore,kAdd){
+  var Ls=fitLines(); if(!Ls.length) return null;
+  var iki=document.getElementById("opt-k2").checked;
+  var sets=[],i;
+  for(i=0;i<Ls.length;i++)
+    sets.push(addDistort(toRaw(perfectStraight(Ls[i].pts,kBefore,S.k2),kBefore,S.k2),kAdd));
+  return solveSets(sets,iki);
+}
+/* iki radyal profil arasindaki en buyuk piksel farki, r<=0.9 bolgesinde */
+function profilFarki(a1,a2,b1,b2){
+  var R=Rn(), mx=0, i;
+  for(i=1;i<=45;i++){
+    var r=0.9*i/45;
+    var d=Math.abs(((a1*r*r+a2*r*r*r*r)-(b1*r*r+b2*r*r*r*r))*r*R);
+    if(d>mx) mx=d;
+  }
+  return mx;
+}
+
+/* ====== BELIRSIZLIK VE DAYANIKLILIK ======
+   Arac tek bir k1 sayisi veriyor ama yaninda hata payi yoktu. Iki olcum:
+
+   1) Artik bootstrap'i. Cozum bulunduktan sonra her nesnenin noktalarinin
+      bulunmasi gereken duz cizgiden sapmasi (artik) hesaplanir. Bu artiklar
+      karistirilip noktalara geri konur, sahte ama ayni gurultu seviyesinde
+      veri uretilir ve her seferinde k1 bastan cozulur. Cikan dagilimin
+      genisligi, senin isaretleme hassasiyetinin k1'e ne kadar belirsizlik
+      tasidigini soyler.
+
+   2) Nesne birakma. Her nesne sirayla hesaptan cikarilip kalanlarla
+      cozulur. Sonucu tek bir nesnenin mi tasidigi boylece gorulur.      */
+function decompose(pts,k1,k2){
+  var R=Rn(),n=pts.length,i,C=[],mx=0,my=0;
+  for(i=0;i<n;i++){C.push(corr(pts[i].x,pts[i].y,k1,k2,S.cx,S.cy,R));mx+=C[i][0];my+=C[i][1];}
+  mx/=n;my/=n;
+  var sxx=0,syy=0,sxy=0;
+  for(i=0;i<n;i++){var ax=C[i][0]-mx,ay=C[i][1]-my;sxx+=ax*ax;syy+=ay*ay;sxy+=ax*ay;}
+  var th=0.5*Math.atan2(2*sxy,sxx-syy),ux=Math.cos(th),uy=Math.sin(th),nx=-uy,ny=ux;
+  var proj=[],res=[];
+  for(i=0;i<n;i++){
+    var dx=C[i][0]-mx, dy=C[i][1]-my, t=dx*ux+dy*uy, dd=dx*nx+dy*ny;
+    proj.push({x:mx+ux*t, y:my+uy*t}); res.push(dd);
+  }
+  return {proj:proj,res:res,nx:nx,ny:ny};
+}
+function bootstrapK1(B){
+  var Ls=fitLines(); if(Ls.length<1) return null;
+  var iki=document.getElementById("opt-k2").checked;
+  var k0=S.k1,k2=S.k2,i,j,b;
+  var D=[],ok=true;
+  for(i=0;i<Ls.length;i++){ var d=decompose(Ls[i].pts,k0,k2); if(d.res.length<4) ok=false; D.push(d); }
+  if(!ok) return null;
+  var ks=[];
+  for(b=0;b<B;b++){
+    var sets=[];
+    for(i=0;i<Ls.length;i++){
+      var d=D[i], n=d.proj.length, sy=[];
+      for(j=0;j<n;j++){
+        var r=d.res[(Math.random()*n)|0];
+        sy.push({x:d.proj[j].x+d.nx*r, y:d.proj[j].y+d.ny*r});
+      }
+      sets.push(toRaw(sy,k0,k2));
+    }
+    ks.push(solveSets(sets,iki));
+  }
+  function ozet(dizi){
+    var a=dizi.slice().sort(function(x,y){return x-y;});
+    var mn=0,j2; for(j2=0;j2<a.length;j2++) mn+=a[j2]; mn/=a.length;
+    var sq=0; for(j2=0;j2<a.length;j2++) sq+=(a[j2]-mn)*(a[j2]-mn);
+    return {mean:mn, sd:Math.sqrt(sq/Math.max(1,a.length-1)),
+            lo:a[Math.floor(a.length*0.16)], hi:a[Math.floor(a.length*0.84)]};
+  }
+  var a1=ozet(ks.map(function(o){return o.k1;}));
+  var a2=ozet(ks.map(function(o){return o.k2;}));
+  return {n:B, mean:a1.mean, sd:a1.sd, lo:a1.lo, hi:a1.hi,
+          iki_terim:iki, k2_sd:a2.sd, k2_mean:a2.mean};
+}
+function leaveOneOut(){
+  var Ls=fitLines(); if(Ls.length<3) return null;
+  var out=[],i,j;
+  for(i=0;i<Ls.length;i++){
+    var sets=[];
+    for(j=0;j<Ls.length;j++) if(j!==i) sets.push(Ls[j].pts);
+    var rr=solveSets(sets,document.getElementById("opt-k2").checked);
+    out.push({no:S.lines.indexOf(Ls[i])+1, k1:rr.k1, k2:rr.k2});
+  }
+  return out;
+}
+function selfTest(){
+  var kAdd=parseFloat(document.getElementById("test-k").value);
+  var outEl=document.getElementById("testout");
+  if(isNaN(kAdd)||Math.abs(kAdd)<0.01){toast("Enter a test k1 larger than 0.01.","var(--warn)");return;}
+  if(!S.img||!fitLines().length){toast("Load a frame and mark some objects first.","var(--warn)");return;}
+  doFit();
+  var kBefore=S.k1, rBefore=S.r1;
+  var expect=expectedAfter(kBefore,kAdd);
+  if(expect===null){toast("The expected value could not be computed.","var(--warn)");return;}
+  /* Kor test kareyi ve noktalari bozuyor. Oncesini saklayip testten sonra
+     geri yukluyoruz, boylece ekranda ve disa aktarimda GERCEK cozum kaliyor,
+     kullanici her testten sonra bastan isaretlemek zorunda kalmiyor.      */
+  var yedek={img:S.img, src:S.srcName, isSample:S.isSample,
+             pts:S.lines.map(function(L){
+               return L.pts.map(function(p){return {x:p.x,y:p.y};});})};
+  var W=S.W,H=S.H,R=Rn(),cx=W/2,cy=H/2;
+  var sc=document.createElement("canvas");sc.width=W;sc.height=H;
+  var sg=sc.getContext("2d");sg.drawImage(S.img,0,0,W,H);
+  var sd=sg.getImageData(0,0,W,H).data;
+  var dc=document.createElement("canvas");dc.width=W;dc.height=H;
+  var dg=dc.getContext("2d"),od=dg.createImageData(W,H),odat=od.data;
+  for(var y=0;y<H;y++){
+    for(var x=0;x<W;x++){
+      var dx=x-cx,dy=y-cy,r=Math.hypot(dx,dy)/R,sf=1+kAdd*r*r;
+      var fx=cx+dx*sf, fy=cy+dy*sf, oi=(y*W+x)*4;
+      if(fx<0||fy<0||fx>W-1||fy>H-1){odat[oi]=10;odat[oi+1]=13;odat[oi+2]=16;odat[oi+3]=255;continue;}
+      var x0=fx|0,y0=fy|0,x1=Math.min(x0+1,W-1),y1=Math.min(y0+1,H-1),ax=fx-x0,ay=fy-y0;
+      var i00=(y0*W+x0)*4,i10=(y0*W+x1)*4,i01=(y1*W+x0)*4,i11=(y1*W+x1)*4;
+      for(var ch=0;ch<3;ch++){
+        var tp=sd[i00+ch]+(sd[i10+ch]-sd[i00+ch])*ax;
+        var bt=sd[i01+ch]+(sd[i11+ch]-sd[i01+ch])*ax;
+        odat[oi+ch]=tp+(bt-tp)*ay;
+      }
+      odat[oi+3]=255;
+    }
+  }
+  dg.putImageData(od,0,0);
+  S.img=dc; S.isSample=false; S.srcName="BLIND TEST (+"+kAdd.toFixed(3)+")";
+  function warpPts(arr){
+    return arr.map(function(pt){
+      var dx=pt.x-cx,dy=pt.y-cy,r=Math.hypot(dx,dy)/R;
+      if(r<1e-9) return {x:pt.x,y:pt.y};
+      var k=invR(r,kAdd,0)/r;
+      return {x:cx+dx*k,y:cy+dy*k};
+    });
+  }
+  S.lines.forEach(function(L){ L.pts=warpPts(L.pts); });
+  upload(S.img); buildGray();
+  doFit();
+  var kAfter=S.k1, k2After=S.k2;
+  var err=kAfter-expect.k1;
+  /* Asil olcut katsayi degil, duzeltmenin kac piksel kaydirdigi. Terim
+     sayisi degisince katsayilar birbirine kayar ama egri ayni kalir.   */
+  var farkPx=profilFarki(expect.k1,expect.k2,kAfter,k2After);
+  var R=Rn(), olcek=Math.abs((expect.k1*0.64+expect.k2*0.4096)*0.8*R);
+  var esik=Math.max(3.0, olcek*0.05);
+  var clipped=(Math.abs(Math.abs(kAfter)-KMAX)<0.005)||(expect.k1>KMAX-0.005);
+  var ok=!clipped&&(farkPx<esik);
+  var rAfter=S.r1;
+  /* --- gercek duruma geri don --- */
+  S.img=yedek.img; S.srcName=yedek.src; S.isSample=yedek.isSample;
+  S.lines.forEach(function(L,i){ if(yedek.pts[i]) L.pts=yedek.pts[i]; });
+  upload(S.img); buildGray(); doFit();
+  S.blind={added:kAdd,expected_k1:expect.k1,expected_k2:expect.k2,
+           found_k1:kAfter,found_k2:k2After,before:kBefore,
+           error_k1:err,profil_farki_px:farkPx,esik_px:esik,
+           ok:ok,clipped:clipped,k_max:KMAX,
+           note:"frame and points were restored after the test; the solution block is the real scene's solution"};
+  updResults();
+  rozet("rec-test",true);
+  var iki=document.getElementById("opt-k2").checked;
+  outEl.innerHTML=
+    "before test    k1 = "+kBefore.toFixed(4)+"  (deviation "+rBefore.toFixed(2)+" px)<br>"+
+    "added          k1 = "+kAdd.toFixed(4)+"<br>"+
+    "expected       k1 = "+expect.k1.toFixed(4)+(iki?"   k2 = "+expect.k2.toFixed(4):"")+"<br>"+
+    "found          k1 = "+kAfter.toFixed(4)+(iki?"   k2 = "+k2After.toFixed(4):"")+
+      "   (deviation "+rAfter.toFixed(2)+" px)<br>"+
+    (iki?"<span class='hint'>With k2 on, the coefficients are not compared one by one; "+
+         "k1 and k2 can substitute for each other. The criterion is the curve difference below.</span><br>":"")+
+    "<b>correction curve difference = "+farkPx.toFixed(1)+" px"+
+      " (threshold "+esik.toFixed(1)+" px)"+
+    (clipped?" - TEST CLIPPED, INCONCLUSIVE (k1 ceiling "+KMAX.toFixed(2)+")</b><br>try a smaller amount"
+           :(ok?" - MEASUREMENT CHAIN WORKS</b>":" - MEASUREMENT CHAIN NOT RELIABLE</b>"))+
+    "<br><span class='hint'>The frame and the points have been restored; the solution on screen "+
+    "is the real scene's solution again. You do not need to mark anything from scratch.</span>";
+  updFoot();
+}
+function buildLog(){
+  var i,prof=[];
+  for(i=0;i<=24;i++){var r=1.2*i/24;prof.push([+r.toFixed(3),+(1+S.k1*r*r+S.k2*r*r*r*r).toFixed(5)]);}
+  var mono=true,prev=1;
+  for(i=1;i<=24;i++){var rr2=1.15*i/24,sv=1+S.k1*rr2*rr2+S.k2*rr2*rr2*rr2*rr2;if(sv<prev-1e-6)mono=false;prev=sv;}
+  var R=Rn(), sref=1+S.k1*0.49+S.k2*0.2401;
+  var lines=S.lines.map(function(L,idx){
+    var own=null;
+    try{ var f=fitOne(L); own=(f.k1===null)?null:{k1:+f.k1.toFixed(5),before:+f.before.toFixed(3),after:+f.after.toFixed(3),at_bound:!!f.bound}; }catch(e){}
+    return {
+      id:idx+1,
+      n_points:L.pts.length,
+      snapped:!!L.snapped,
+      mode:"manual",
+      edge_wander_px:L.wander!==undefined?+L.wander.toFixed(3):null,
+      curvature_info_px:L.info!==undefined?+L.info.toFixed(3):null,
+      holdout:!!L.hold,
+      used_in_fit:fitLines().indexOf(L)>=0,
+      flat_before_px:+lineStat(L.pts,0,0,S.W/2,S.H/2).px.toFixed(3),
+      flat_after_px:+lineStat(L.pts,S.k1,S.k2,S.cx,S.cy).px.toFixed(3),
+      own_fit:own,
+      points:L.pts.map(function(q){return [+q.x.toFixed(2),+q.y.toFixed(2)];})
+    };
+  });
+  return {
+    tool:"cizgiden-kalibrasyon", build:"2026-11-08",
+    timestamp:new Date().toISOString(),
+    image:{name:S.srcName,width:S.W,height:S.H,is_sample:S.isSample,
+           norm_radius:+R.toFixed(2),
+           sample_truth:S.isSample?{k1:S.trueK1,k2:S.trueK2}:null},
+    settings:{solve_k2:document.getElementById("opt-k2").checked,
+              input_mode:"manual"},
+    uncertainty:S.unc||null,
+    k2_advice:S.k2advice||null,
+    coverage:(function(){var c=coverage();return c?{
+      r_min:+c.min.toFixed(3), r_max:+c.max.toFixed(3), r_span:+c.span.toFixed(3),
+      bands:c.bands, filled_bands:c.dolu,
+      widest_single_object:+c.en_genis.toFixed(3),
+      per_object:c.tekil.map(function(t){return {no:t.no,
+        r_min:+t.min.toFixed(3), r_max:+t.max.toFixed(3), r_span:+t.span.toFixed(3)};}),
+      problems:c.sorun.map(function(x){return {ic:"no_object_near_centre",
+        dis:"nothing_reaches_outer_band", dar:"objects_in_narrow_band",
+        kume:"marked_regions_not_spread", uzun:"no_single_object_spans_wide_range"}[x]||x;})}:null;})(),
+    solution:{k1:+S.k1.toFixed(6),k2:+S.k2.toFixed(6),
+              cx:+S.cx.toFixed(2),cy:+S.cy.toFixed(2),
+              framing_zoom:+S.zoom.toFixed(4),
+              flat_before_px:S.r0===null?null:+S.r0.toFixed(3),
+              flat_after_px:S.r1===null?null:+S.r1.toFixed(3),
+              holdout_before_px:S.ho?+S.ho.h0.toFixed(3):null,
+              holdout_after_px:S.ho?+S.ho.h1.toFixed(3):null,
+              corner_shift_px:+((S.k1+S.k2)*R).toFixed(1),
+              net_shape_px:+(((1+S.k1+S.k2)/sref-1)*R).toFixed(1),
+              hit_bound:!!S.hitBound, worse_than_baseline:!!S.worse,
+              profile_monotonic:mono, k_max_bound:KMAX},
+    radial_profile:prof,
+    lines:lines,
+    blind_test:S.blind||null
+  };
+}
+function saveLog(){
+  var data=JSON.stringify(buildLog(),null,1);
+  var blob=new Blob([data],{type:"application/json"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url; a.download="cozum_log_"+Date.now()+".json";
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1500);
+  toast("Log saved.");
+}
+function toast(m,c){var t=document.getElementById("toast");t.style.color=c||"var(--ok)";t.textContent=m;
+  setTimeout(function(){t.textContent="";},2600);}
+
+var holder=document.getElementById("holder"), stage=holder.parentNode;
+function clampView(){
+  var vis=1/S.vz;
+  if(S.vz<=1.0001){S.vz=1;S.vox=0;S.voy=0;return;}
+  S.vox=Math.min(Math.max(S.vox,0),1-vis);
+  S.voy=Math.min(Math.max(S.voy,0),1-vis);
+}
+function applyView(){
+  clampView();
+  holder.style.transform="scale("+S.vz+") translate("+(-S.vox*100)+"%,"+(-S.voy*100)+"%)";
+  document.getElementById("z-lab").textContent=S.vz.toFixed(1)+"x";
+  drawOverlay();   // isaretler yeni olcege gore yeniden cizilsin
+}
+/* ekrandaki konumu goruntu pikseline cevirir; CSS donusumu getBoundingClientRect'e
+   zaten yansidigi icin burada ek bir hesap gerekmiyor */
+function toImg(ev){var r=ovc.getBoundingClientRect();
+  return {x:(ev.clientX-r.left)*(S.W/r.width),y:(ev.clientY-r.top)*(S.H/r.height)};}
+
+/* tekerlek: imlecin altindaki nokta sabit kalacak sekilde yakinlas/uzaklas */
+/* donusumden etkilenmeyen yerlesim boyutu ve donusumsuz sol-ust kose */
+function viewBox(){
+  var Lw=holder.offsetWidth, Lh=holder.offsetHeight, r=holder.getBoundingClientRect();
+  return {Lw:Lw, Lh:Lh, ox:r.left+S.vox*Lw*S.vz, oy:r.top+S.voy*Lh*S.vz};
+}
+stage.addEventListener("wheel",function(ev){
+  ev.preventDefault();
+  var V=viewBox();
+  var dx=ev.clientX-V.ox, dy=ev.clientY-V.oy;
+  var ux=S.vox+dx/(V.Lw*S.vz), uy=S.voy+dy/(V.Lh*S.vz);
+  var step=Math.exp(-ev.deltaY*0.0016);
+  var nz=Math.min(12,Math.max(1,S.vz*step));
+  S.vz=nz; S.vox=ux-dx/(V.Lw*nz); S.voy=uy-dy/(V.Lh*nz);
+  applyView();
+},{passive:false});
+document.getElementById("z-fit").onclick=function(){S.vz=1;S.vox=0;S.voy=0;applyView();};
+ovc.addEventListener("pointerdown",function(ev){
+  if(S.vz>1.0001&&(ev.button===1||ev.shiftKey)){
+    ev.preventDefault();
+    S.pan={x:ev.clientX,y:ev.clientY,ox:S.vox,oy:S.voy};
+    holder.classList.add("panning");ovc.setPointerCapture(ev.pointerId);return;
+  }
+  if(S.t>0.01){toast("Set the transition to Raw to add points.","var(--warn)");return;}
+  var p=toImg(ev),tol=Math.max(9,10*(S.W/ovc.getBoundingClientRect().width));
+  for(var i=0;i<S.lines.length;i++)for(var j=0;j<S.lines[i].pts.length;j++){
+    var q=S.lines[i].pts[j];
+    if(Math.hypot(q.x-p.x,q.y-p.y)<tol){S.drag={i:i,j:j};ovc.setPointerCapture(ev.pointerId);return;}
+  }
+  S.active.push(p);refreshList();render();
+});
+ovc.addEventListener("pointermove",function(ev){
+  if(S.pan){
+    S.vox=S.pan.ox-(ev.clientX-S.pan.x)/(holder.offsetWidth*S.vz);
+    S.voy=S.pan.oy-(ev.clientY-S.pan.y)/(holder.offsetHeight*S.vz);
+    applyView();return;
+  }
+  var p=toImg(ev);
+  document.getElementById("f-cur").textContent=Math.round(p.x)+", "+Math.round(p.y);
+  if(S.drag){var DL=S.lines[S.drag.i];DL.pts[S.drag.j]={x:p.x,y:p.y};DL.seed=DL.pts.map(function(q){return {x:q.x,y:q.y};});DL.snapped=false;refreshList();render();}
+});
+ovc.addEventListener("pointerup",function(){S.drag=null;S.pan=null;holder.classList.remove("panning");});
+
+ovc.addEventListener("pointercancel",function(){S.drag=null;S.pan=null;holder.classList.remove("panning");});
+ovc.addEventListener("auxclick",function(ev){if(ev.button===1)ev.preventDefault();});
+
+function finishLine(){
+  if(S.active.length>=3){
+    var L={mode:"manual",pts:S.active.slice(),snapped:false,hold:false};
+    S.active=[];
+    S.lines.push(L);
+    markStale();
+  } else if(S.active.length) toast("At least 3 points per object.","var(--warn)");
+  refreshList();updFoot();render();
+}
+document.getElementById("b-fin").onclick=finishLine;
+document.getElementById("b-undo").onclick=function(){if(S.active.length){S.active.pop();refreshList();render();}};
+document.getElementById("b-unc").onclick=function(){
+  var el=document.getElementById("uncout");
+  if(S.r1===null){el.innerHTML="Solve the coefficients first.";return;}
+  if(S.stale){el.innerHTML="Objects changed - solve again first.";return;}
+  el.innerHTML="Computing...";
+  setTimeout(function(){
+    var ikiT=document.getElementById("opt-k2").checked;
+    var B=bootstrapK1(ikiT?80:200), lo=leaveOneOut(), txt="", i;
+    if(!B){el.innerHTML="Uncertainty needs at least 4 points on every object.";return;}
+    S.unc={bootstrap:B, leave_one_out:lo};
+    rozet("rec-unc",true);
+    txt += "k1 = "+S.k1.toFixed(4)+"\n";
+    txt += "uncertainty  \u00b1 "+B.sd.toFixed(4)+"   (68% range "+B.lo.toFixed(4)+" .. "+B.hi.toFixed(4)+", "+B.n+" runs)\n";
+    var rel=Math.abs(S.k1)>1e-6?100*B.sd/Math.abs(S.k1):0;
+    txt += "that is \u00b1 "+rel.toFixed(1)+"% of k1 itself\n";
+    if(B.iki_terim) txt += "k2 = "+S.k2.toFixed(4)+"      uncertainty  \u00b1 "+B.k2_sd.toFixed(4)+"\n";
+    txt += "\n";
+    if(!lo){
+      txt += "Leave-one-out needs at least 3 objects in the fit.\n"
+           + "There are "+fitLines().length+" right now.";
+    } else {
+      txt += "NESNE BIRAKMA\n";
+      var worst=0,wn=0;
+      for(i=0;i<lo.length;i++){
+        var df=lo[i].k1-S.k1;
+        txt += "  without object "+lo[i].no+"   k1 = "+lo[i].k1.toFixed(4)
+             + "   fark "+(df>=0?"+":"")+df.toFixed(4)+"\n";
+        if(Math.abs(df)>worst){worst=Math.abs(df);wn=lo[i].no;}
+      }
+      S.unc.max_shift=worst; S.unc.max_shift_line=wn;
+      txt += "\n";
+      if(worst>2*B.sd)
+        txt += "WARNING: the result depends heavily on object "+wn+".\n"
+             + "Removing it moves k1 by more than twice the uncertainty.\n"
+             + "Add another object of similar length.";
+      else
+        txt += "No single object moves the result outside the uncertainty band.\n"
+             + "Nesneler birbirini destekliyor.";
+    }
+    el.textContent=txt;
+  },30);
+};
+document.getElementById("b-k2on").onclick=function(){
+  document.getElementById("opt-k2").checked=true;
+  document.getElementById("k2box").hidden=true;
+  doFit();
+  toast("k2 enabled and solved again.");
+};
+document.getElementById("opt-k2").addEventListener("change",function(){
+  if(this.checked) document.getElementById("k2box").hidden=true;
+  else if(S.r1!==null&&!S.stale) showK2Advice();
+});
+document.getElementById("b-play").onclick=function(){setT(0,true);playTransition();};
+document.getElementById("b-arrows").onclick=function(){S.showArrows=!S.showArrows;this.classList.toggle("on",S.showArrows);render();};
+document.getElementById("b-bound").onclick=function(){S.showBound=!S.showBound;this.classList.toggle("on",S.showBound);render();};
+document.getElementById("b-grid").onclick=function(){S.showGrid=!S.showGrid;this.classList.toggle("on",S.showGrid);render();};
+document.getElementById("b-fit").onclick=doFit;
+document.getElementById("b-apply").onclick=applyManual;
+document.getElementById("b-log").onclick=saveLog;
+document.getElementById("b-test").onclick=selfTest;
+var manualWrap=document.getElementById("manualWrap");
+function manualAc(a){ manualWrap.hidden=!a; if(a) manualWrap.scrollTop=0; }
+document.getElementById("b-manual").onclick=function(){ manualAc(true); };
+document.getElementById("b-manual-close").onclick=function(){ manualAc(false); };
+manualWrap.addEventListener("click",function(ev){ if(ev.target===manualWrap) manualAc(false); });
+document.getElementById("man-k1").addEventListener("keydown",function(e){if(e.key==="Enter"){e.stopPropagation();applyManual();}});
+document.getElementById("b-each").onclick=function(){
+  var rows=[],ks=[];
+  S.lines.forEach(function(L,i){
+    if(L.pts.length<3) return;
+    var r=fitOne(L);
+    if(r.k1===null){
+      rows.push("object "+(i+1)+": <b>no information</b> (curvature sensitivity "+r.info.toFixed(2)+
+        " px) - points at the centre or too short, left out of the solve");
+      return;
+    }
+    ks.push(r.k1);
+    rows.push("object "+(i+1)+(L.hold?" (check)":"")+": k1="+r.k1.toFixed(4)+(r.bound?" <b>AT BOUND</b>":"")+
+      "  deviation "+r.before.toFixed(2)+"→"+r.after.toFixed(2)+" px"+
+      (L.wander?"  wander "+L.wander.toFixed(2):""));
+  });
+  if(!rows.length){document.getElementById("eachout").textContent="no objects";return;}
+  if(ks.length>1){
+    var mn=Math.min.apply(null,ks),mx=Math.max.apply(null,ks);
+    var sk=ks.slice().sort(function(a,b){return a-b;});
+    var med=sk.length%2?sk[(sk.length-1)/2]:(sk[sk.length/2-1]+sk[sk.length/2])/2;
+    rows.push("<b>k1 range "+mn.toFixed(4)+" ... "+mx.toFixed(4)+", median "+med.toFixed(4)+
+      (mx-mn>0.06?" - the objects disagree</b>":" - consistent</b>"));
+  }
+  document.getElementById("eachout").innerHTML=rows.join("<br>");
+};
+document.getElementById("b-reset").onclick=function(){
+  S.k1=0;S.k2=0;S.cx=S.W/2;S.cy=S.H/2;S.r0=null;S.r1=null;S.ho=null;
+  setZ(1);setG(1);setT(0,true);refreshList();updResults();
+};
+document.getElementById("s-t").oninput=function(){setT(parseFloat(this.value),true);};
+document.getElementById("s-z").oninput=function(){setZ(parseFloat(this.value));};
+document.getElementById("s-g").oninput=function(){setG(parseFloat(this.value));};
+Array.prototype.forEach.call(document.querySelectorAll("[data-t]"),function(b){b.onclick=function(){setT(parseFloat(b.dataset.t),true);};});
+Array.prototype.forEach.call(document.querySelectorAll("[data-g]"),function(b){b.onclick=function(){setG(parseFloat(b.dataset.g));};});
+document.getElementById("z-neutral").onclick=function(){setZ(Math.max(0.55,Math.min(1.70,zNeutral())));if(S.t<0.99)setT(1,true);};
+document.getElementById("z-all").onclick=function(){setZ(Math.max(0.55,Math.min(1.70,zRefs().all)));if(S.t<0.99)setT(1,true);};
+document.getElementById("z-none").onclick=function(){setZ(Math.max(0.55,Math.min(1.70,zRefs().none)));if(S.t<0.99)setT(1,true);};
+/* Isaretlenmis nesne varken kare degistirmek butun emegi siler.
+   Once onay istiyoruz.                                            */
+/* Ornek kare acilista kendi nesneleriyle geliyor; onlar kullanicinin
+   emegi degil. Uyari yalnizca kullanicinin kendi karesinde cikar.     */
+function isVarMi(){ return !S.isSample && (S.lines.length>0 || S.active.length>0); }
+function kareDegistirOnayi(){
+  if(!isVarMi()) return true;
+  return window.confirm("You will lose all the objects you marked on this frame. Are you sure?");
+}
+document.getElementById("b-load").onclick=function(){
+  if(!kareDegistirOnayi()) return;
+  document.getElementById("file").click();
+};
+document.getElementById("file").onchange=function(ev){
+  var f=ev.target.files&&ev.target.files[0];if(!f)return;
+  var img=new Image();
+  img.onload=function(){
+    /* Kare kendi cozunurlugunde islenir. Kucultme yalnizca ekranda,
+       CSS ile yapilir; hesap her zaman orijinal piksellerde doner.  */
+    var W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+    var off=document.createElement("canvas");off.width=W;off.height=H;
+    off.getContext("2d").drawImage(img,0,0,W,H);
+    S.img=off;S.W=W;S.H=H;S.cx=W/2;S.cy=H/2;
+    S.lines=[];S.active=[];S.isSample=false;S.k1=0;S.k2=0;S.r0=null;S.r1=null;S.ho=null;
+    S.srcName=f.name.slice(0,24);
+    resizeCanvases();upload(S.img);buildGray();
+    setZ(1);setG(1);setT(0,true);refreshList();updFoot();updResults();
+    URL.revokeObjectURL(img.src);
+  };
+  img.src=URL.createObjectURL(f);
+};
+document.getElementById("b-sample").onclick=function(){
+  if(!kareDegistirOnayi()) return;
+  makeSample();S.k1=0;S.k2=0;S.r0=null;S.r1=null;S.ho=null;
+  resizeCanvases();upload(S.img);buildGray();
+  setZ(1);setG(1);setT(0,true);refreshList();updFoot();updResults();
+};
+document.getElementById("opt-k2").onchange=function(){ if(S.r0!==null) doFit(); };
+document.getElementById("b-copy").onclick=function(){
+  var ta=document.getElementById("out");
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(ta.value).then(function(){toast("Copied.");},function(){ta.select();toast("Text selected.","var(--warn)");});
+  else {ta.select();toast("Text selected.","var(--warn)");}
+};
+window.addEventListener("keydown",function(e){
+  if(e.key==="Enter")finishLine();
+  if(e.key==="Escape"){ if(!manualWrap.hidden){manualAc(false);return;} S.active=[];refreshList();updFoot();render();}
+});
+
+if(initGL()){
+  makeSample();resizeCanvases();upload(S.img);buildGray();
+  refreshList();updFoot();doFit();
+}else{
+  document.getElementById("vd").textContent="WebGL is not working in this browser.";
+}
+})();
+</script>
+</body>
+</html>
